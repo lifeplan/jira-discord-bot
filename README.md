@@ -34,6 +34,10 @@ JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your_api_token
 JIRA_PROJECT_KEY=LP
 
+# Supabase
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_ANON_KEY=eyJxxxx...
+
 # Server
 NODE_ENV=development
 ```
@@ -51,40 +55,51 @@ pnpm build && pnpm start
 docker compose up -d
 ```
 
-## 수퍼베이스 디비 sql 실행문
+## Supabase 설정
 
+Supabase SQL Editor에서 아래 SQL 실행:
+
+```sql
+-- 테이블 생성
+CREATE TABLE thread_ticket_mappings (
+  id SERIAL PRIMARY KEY,
+  thread_id TEXT UNIQUE NOT NULL,
+  ticket_key TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE user_mappings (
+  id SERIAL PRIMARY KEY,
+  jira_account_id TEXT UNIQUE NOT NULL,
+  jira_display_name TEXT NOT NULL,
+  discord_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE comment_message_mappings (
+  id SERIAL PRIMARY KEY,
+  discord_message_id TEXT UNIQUE NOT NULL,
+  jira_comment_id TEXT UNIQUE,
+  thread_id TEXT NOT NULL,
+  ticket_key TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 인덱스
+CREATE INDEX idx_ticket_key ON thread_ticket_mappings(ticket_key);
+CREATE INDEX idx_jira_comment_id ON comment_message_mappings(jira_comment_id);
+
+-- RLS 비활성화
+ALTER TABLE thread_ticket_mappings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE user_mappings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE comment_message_mappings DISABLE ROW LEVEL SECURITY;
+
+-- 권한 부여
+GRANT ALL ON thread_ticket_mappings TO anon, authenticated;
+GRANT ALL ON user_mappings TO anon, authenticated;
+GRANT ALL ON comment_message_mappings TO anon, authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 ```
--- 스레드-티켓 매핑
-  CREATE TABLE thread_ticket_mappings (
-    id SERIAL PRIMARY KEY,
-    thread_id TEXT UNIQUE NOT NULL,
-    ticket_key TEXT NOT NULL,
-    message_id TEXT NOT NULL,
-    channel_id TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-
-  -- 사용자 매핑 (Jira ↔ Discord)
-  CREATE TABLE user_mappings (
-    id SERIAL PRIMARY KEY,
-    jira_account_id TEXT UNIQUE NOT NULL,
-    jira_display_name TEXT NOT NULL,
-    discord_user_id TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-
-  -- 코멘트-메시지 매핑
-  CREATE TABLE comment_message_mappings (
-    id SERIAL PRIMARY KEY,
-    discord_message_id TEXT UNIQUE NOT NULL,
-    jira_comment_id TEXT UNIQUE,
-    thread_id TEXT NOT NULL,
-    ticket_key TEXT NOT NULL,
-    source TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-
-  -- 인덱스
-  CREATE INDEX idx_ticket_key ON thread_ticket_mappings(ticket_key);
-  CREATE INDEX idx_jira_comment_id ON comment_message_mappings(jira_comment_id);
-  ```
