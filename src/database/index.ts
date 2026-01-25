@@ -29,10 +29,37 @@ db.exec(`
   )
 `);
 
+// 사용자 매핑 테이블 (Jira ↔ Discord 멘션용)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jira_account_id TEXT UNIQUE NOT NULL,
+    jira_display_name TEXT NOT NULL,
+    discord_user_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// 코멘트-메시지 매핑 테이블 (수정/삭제 동기화용)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS comment_message_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    discord_message_id TEXT UNIQUE NOT NULL,
+    jira_comment_id TEXT UNIQUE,
+    thread_id TEXT NOT NULL,
+    ticket_key TEXT NOT NULL,
+    source TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // 인덱스 생성
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_thread_id ON thread_ticket_mappings(thread_id);
   CREATE INDEX IF NOT EXISTS idx_ticket_key ON thread_ticket_mappings(ticket_key);
+  CREATE INDEX IF NOT EXISTS idx_jira_account_id ON user_mappings(jira_account_id);
+  CREATE INDEX IF NOT EXISTS idx_discord_message_id ON comment_message_mappings(discord_message_id);
+  CREATE INDEX IF NOT EXISTS idx_jira_comment_id ON comment_message_mappings(jira_comment_id);
 `);
 
 console.log(`Database initialized at ${dbPath}`);

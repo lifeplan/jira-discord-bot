@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { getDiscordUserByJiraAccount, getDiscordUserByJiraDisplayName } from '../database/mappings.js';
 
 const auth = Buffer.from(`${config.jira.email}:${config.jira.apiToken}`).toString('base64');
 
@@ -38,13 +39,22 @@ async function jiraFetch<T>(
   return response.json() as Promise<T>;
 }
 
-// Jira 티켓에 코멘트 추가
+// Jira 코멘트 응답 타입
+interface JiraCommentResponse {
+  id: string;
+  body: unknown;
+  author?: {
+    displayName: string;
+  };
+}
+
+// Jira 티켓에 코멘트 추가 (코멘트 ID 반환)
 export async function addComment(
   issueKey: string,
   content: string,
   authorName: string
-): Promise<void> {
-  await jiraFetch(`/issue/${issueKey}/comment`, {
+): Promise<string> {
+  const response = await jiraFetch<JiraCommentResponse>(`/issue/${issueKey}/comment`, {
     method: 'POST',
     body: JSON.stringify({
       body: {
@@ -63,6 +73,46 @@ export async function addComment(
         ],
       },
     }),
+  });
+  return response.id;
+}
+
+// Jira 코멘트 수정
+export async function updateComment(
+  issueKey: string,
+  commentId: string,
+  content: string,
+  authorName: string
+): Promise<void> {
+  await jiraFetch(`/issue/${issueKey}/comment/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      body: {
+        type: 'doc',
+        version: 1,
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: `[Discord - ${authorName}]\n \n${content}`,
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+}
+
+// Jira 코멘트 삭제
+export async function deleteComment(
+  issueKey: string,
+  commentId: string
+): Promise<void> {
+  await jiraFetch(`/issue/${issueKey}/comment/${commentId}`, {
+    method: 'DELETE',
   });
 }
 
@@ -212,8 +262,29 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
     case 'hardBreak':
       return '\n';
 
-    case 'mention':
-      return `@${n.attrs?.text ?? 'user'}`;
+    case 'mention': {
+      const jiraAccountId = n.attrs?.id as string | undefined;
+      const jiraDisplayName = n.attrs?.text as string | undefined;
+
+      // 1. Jira 계정 ID로 Discord 사용자 찾기
+      if (jiraAccountId) {
+        const discordUserId = getDiscordUserByJiraAccount(jiraAccountId);
+        if (discordUserId) {
+          return `<@${discordUserId}>`;
+        }
+      }
+
+      // 2. Jira 표시 이름으로 Discord 사용자 찾기
+      if (jiraDisplayName) {
+        const discordUserId = getDiscordUserByJiraDisplayName(jiraDisplayName);
+        if (discordUserId) {
+          return `<@${discordUserId}>`;
+        }
+      }
+
+      // 3. 매핑 없으면 텍스트로 표시
+      return `@${jiraDisplayName ?? 'user'}`;
+    }
 
     case 'emoji':
       return n.attrs?.shortName as string ?? '';
