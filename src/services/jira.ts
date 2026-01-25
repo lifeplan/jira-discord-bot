@@ -123,18 +123,116 @@ export interface JiraWebhookPayload {
   };
 }
 
-// Jira ADF(Atlassian Document Format)에서 텍스트 추출
+// ADF 노드 타입
+interface ADFNode {
+  type: string;
+  text?: string;
+  content?: ADFNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  attrs?: Record<string, unknown>;
+}
+
+// Jira ADF(Atlassian Document Format)를 Discord Markdown으로 변환
+function convertADFToMarkdown(node: unknown, listDepth = 0): string {
+  if (!node || typeof node !== 'object') return '';
+
+  const n = node as ADFNode;
+
+  // 텍스트 노드 처리 (marks 적용)
+  if (n.type === 'text' && typeof n.text === 'string') {
+    let text = n.text;
+
+    if (n.marks) {
+      for (const mark of n.marks) {
+        switch (mark.type) {
+          case 'strong':
+            text = `**${text}**`;
+            break;
+          case 'em':
+            text = `*${text}*`;
+            break;
+          case 'code':
+            text = `\`${text}\``;
+            break;
+          case 'strike':
+            text = `~~${text}~~`;
+            break;
+          case 'link':
+            const href = mark.attrs?.href as string;
+            if (href) text = `[${text}](${href})`;
+            break;
+        }
+      }
+    }
+    return text;
+  }
+
+  // 컨텐츠가 있는 노드 처리
+  const children = n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('') ?? '';
+
+  switch (n.type) {
+    case 'doc':
+      return n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('\n\n') ?? '';
+
+    case 'paragraph':
+      return children;
+
+    case 'heading': {
+      const level = (n.attrs?.level as number) ?? 1;
+      const prefix = '#'.repeat(Math.min(level, 3)); // Discord는 ###까지만 지원
+      return `${prefix} ${children}`;
+    }
+
+    case 'bulletList':
+      return n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('\n') ?? '';
+
+    case 'orderedList':
+      return n.content?.map((child, i) => {
+        const itemContent = convertADFToMarkdown(child, listDepth);
+        return itemContent.replace(/^- /, `${i + 1}. `);
+      }).join('\n') ?? '';
+
+    case 'listItem': {
+      const indent = '  '.repeat(listDepth);
+      const itemContent = n.content?.map(child => convertADFToMarkdown(child, listDepth + 1)).join('') ?? '';
+      return `${indent}- ${itemContent}`;
+    }
+
+    case 'codeBlock': {
+      const language = (n.attrs?.language as string) ?? '';
+      return `\`\`\`${language}\n${children}\n\`\`\``;
+    }
+
+    case 'blockquote':
+      return children.split('\n').map(line => `> ${line}`).join('\n');
+
+    case 'rule':
+      return '---';
+
+    case 'hardBreak':
+      return '\n';
+
+    case 'mention':
+      return `@${n.attrs?.text ?? 'user'}`;
+
+    case 'emoji':
+      return n.attrs?.shortName as string ?? '';
+
+    default:
+      return children;
+  }
+}
+
+// 단순 텍스트만 추출 (기존 호환용)
 function extractTextFromADF(node: unknown): string {
   if (!node || typeof node !== 'object') return '';
 
-  const n = node as Record<string, unknown>;
+  const n = node as ADFNode;
 
-  // 텍스트 노드
   if (n.type === 'text' && typeof n.text === 'string') {
     return n.text;
   }
 
-  // 하위 content가 있으면 재귀적으로 추출
   if (Array.isArray(n.content)) {
     return n.content.map(extractTextFromADF).join('');
   }
@@ -142,7 +240,7 @@ function extractTextFromADF(node: unknown): string {
   return '';
 }
 
-// Jira 코멘트 본문 추출
+// Jira 코멘트 본문 추출 (Discord Markdown으로 변환)
 export function extractCommentText(comment: JiraComment): string {
   if (!comment.body) return '';
 
@@ -151,13 +249,22 @@ export function extractCommentText(comment: JiraComment): string {
     return comment.body;
   }
 
-  // body가 ADF 객체인 경우
+  // body가 ADF 객체인 경우 - Markdown으로 변환
   if (comment.body.content) {
-    return comment.body.content
-      .map(extractTextFromADF)
-      .join('\n')
-      .trim();
+    return convertADFToMarkdown({ type: 'doc', content: comment.body.content });
   }
 
   return '';
+}
+
+// Jira 설명(description) 추출 (Discord Markdown으로 변환)
+export function extractDescriptionMarkdown(description: JiraIssue['fields']['description']): string {
+  if (!description?.content) return '';
+  return convertADFToMarkdown({ type: 'doc', content: description.content });
+}
+
+// 단순 텍스트만 추출 (설명 미리보기용)
+export function extractDescriptionText(description: JiraIssue['fields']['description']): string {
+  if (!description?.content) return '';
+  return description.content.map(extractTextFromADF).join('\n').trim();
 }

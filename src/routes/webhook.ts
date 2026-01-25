@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { sendJiraNotification, parseJiraIssue, sendJiraCommentToThread } from '../services/discord.js';
+import { sendJiraNotification, parseJiraIssue, sendJiraCommentToThread, updateJiraNotification } from '../services/discord.js';
 import { saveMapping, getMappingByTicketKey } from '../database/mappings.js';
 import { extractCommentText } from '../services/jira.js';
 import type { JiraWebhookPayload } from '../services/jira.js';
@@ -19,6 +19,11 @@ export async function webhookRoutes(fastify: FastifyInstance): Promise<void> {
       // 이슈 생성 이벤트
       if (payload.webhookEvent === 'jira:issue_created') {
         return handleIssueCreated(fastify, payload, reply);
+      }
+
+      // 이슈 업데이트 이벤트
+      if (payload.webhookEvent === 'jira:issue_updated') {
+        return handleIssueUpdated(fastify, payload, reply);
       }
 
       // 코멘트 생성 이벤트
@@ -67,6 +72,50 @@ async function handleIssueCreated(
     fastify.log.error(error, 'Failed to process issue created');
     return reply.status(500).send({
       error: 'Failed to process webhook',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
+// 이슈 업데이트 처리
+async function handleIssueUpdated(
+  fastify: FastifyInstance,
+  payload: JiraWebhookPayload,
+  reply: FastifyReply
+) {
+  if (!payload.issue) {
+    fastify.log.warn('No issue in payload');
+    return reply.status(400).send({ error: 'No issue in payload' });
+  }
+
+  const ticketKey = payload.issue.key;
+
+  // 매핑된 메시지 찾기
+  const mapping = getMappingByTicketKey(ticketKey);
+  if (!mapping) {
+    fastify.log.info({ ticketKey }, 'No mapping found for ticket (issue updated)');
+    return { ignored: true, reason: 'no-mapping' };
+  }
+
+  try {
+    // Jira 이슈 정보 파싱
+    const ticket = parseJiraIssue(payload.issue);
+    fastify.log.info({ ticketKey: ticket.key }, 'Updating Discord message');
+
+    // Discord 메시지 수정
+    await updateJiraNotification(mapping.channel_id, mapping.message_id, ticket);
+    fastify.log.info({ ticketKey, messageId: mapping.message_id }, 'Discord message updated');
+
+    return {
+      success: true,
+      ticketKey,
+      messageId: mapping.message_id,
+      action: 'updated',
+    };
+  } catch (error) {
+    fastify.log.error(error, 'Failed to update Discord message');
+    return reply.status(500).send({
+      error: 'Failed to update Discord message',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
