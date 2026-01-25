@@ -1,4 +1,6 @@
-import { db } from './index.js';
+import { supabase } from './index.js';
+
+// ============ 스레드-티켓 매핑 ============
 
 export interface ThreadTicketMapping {
   id: number;
@@ -10,56 +12,89 @@ export interface ThreadTicketMapping {
 }
 
 // 매핑 저장
-export function saveMapping(
+export async function saveMapping(
   threadId: string,
   ticketKey: string,
   messageId: string,
   channelId: string
-): void {
-  const stmt = db.prepare(`
-    INSERT INTO thread_ticket_mappings (thread_id, ticket_key, message_id, channel_id)
-    VALUES (?, ?, ?, ?)
-  `);
-  stmt.run(threadId, ticketKey, messageId, channelId);
+): Promise<void> {
+  const { error } = await supabase
+    .from('thread_ticket_mappings')
+    .insert({
+      thread_id: threadId,
+      ticket_key: ticketKey,
+      message_id: messageId,
+      channel_id: channelId,
+    });
+
+  if (error) throw error;
 }
 
 // 스레드 ID로 티켓 키 조회
-export function getTicketKeyByThreadId(threadId: string): string | null {
-  const stmt = db.prepare(`
-    SELECT ticket_key FROM thread_ticket_mappings WHERE thread_id = ?
-  `);
-  const row = stmt.get(threadId) as { ticket_key: string } | undefined;
-  return row?.ticket_key ?? null;
+export async function getTicketKeyByThreadId(threadId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('thread_ticket_mappings')
+    .select('ticket_key')
+    .eq('thread_id', threadId)
+    .single();
+
+  if (error || !data) return null;
+  return data.ticket_key;
 }
 
 // 티켓 키로 매핑 조회
-export function getMappingByTicketKey(ticketKey: string): ThreadTicketMapping | null {
-  const stmt = db.prepare(`
-    SELECT * FROM thread_ticket_mappings WHERE ticket_key = ?
-  `);
-  return (stmt.get(ticketKey) as ThreadTicketMapping) ?? null;
+export async function getMappingByTicketKey(ticketKey: string): Promise<ThreadTicketMapping | null> {
+  const { data, error } = await supabase
+    .from('thread_ticket_mappings')
+    .select('*')
+    .eq('ticket_key', ticketKey)
+    .single();
+
+  if (error || !data) return null;
+  return data as ThreadTicketMapping;
 }
 
 // 스레드 ID로 매핑 조회
-export function getMappingByThreadId(threadId: string): ThreadTicketMapping | null {
-  const stmt = db.prepare(`
-    SELECT * FROM thread_ticket_mappings WHERE thread_id = ?
-  `);
-  return (stmt.get(threadId) as ThreadTicketMapping) ?? null;
+export async function getMappingByThreadId(threadId: string): Promise<ThreadTicketMapping | null> {
+  const { data, error } = await supabase
+    .from('thread_ticket_mappings')
+    .select('*')
+    .eq('thread_id', threadId)
+    .single();
+
+  if (error || !data) return null;
+  return data as ThreadTicketMapping;
 }
 
 // 매핑 삭제 (스레드 삭제 시)
-export function deleteMappingByThreadId(threadId: string): void {
-  const stmt = db.prepare(`
-    DELETE FROM thread_ticket_mappings WHERE thread_id = ?
-  `);
-  stmt.run(threadId);
+export async function deleteMappingByThreadId(threadId: string): Promise<void> {
+  const { error } = await supabase
+    .from('thread_ticket_mappings')
+    .delete()
+    .eq('thread_id', threadId);
+
+  if (error) throw error;
+}
+
+// 티켓 키로 매핑 삭제
+export async function deleteMappingByTicketKey(ticketKey: string): Promise<void> {
+  const { error } = await supabase
+    .from('thread_ticket_mappings')
+    .delete()
+    .eq('ticket_key', ticketKey);
+
+  if (error) throw error;
 }
 
 // 모든 매핑 조회 (디버깅용)
-export function getAllMappings(): ThreadTicketMapping[] {
-  const stmt = db.prepare(`SELECT * FROM thread_ticket_mappings ORDER BY created_at DESC`);
-  return stmt.all() as ThreadTicketMapping[];
+export async function getAllMappings(): Promise<ThreadTicketMapping[]> {
+  const { data, error } = await supabase
+    .from('thread_ticket_mappings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as ThreadTicketMapping[];
 }
 
 // ============ 사용자 매핑 (Jira ↔ Discord) ============
@@ -73,51 +108,68 @@ export interface UserMapping {
 }
 
 // 사용자 매핑 저장/업데이트
-export function saveUserMapping(
+export async function saveUserMapping(
   jiraAccountId: string,
   jiraDisplayName: string,
   discordUserId: string
-): void {
-  const stmt = db.prepare(`
-    INSERT INTO user_mappings (jira_account_id, jira_display_name, discord_user_id)
-    VALUES (?, ?, ?)
-    ON CONFLICT(jira_account_id) DO UPDATE SET
-      jira_display_name = excluded.jira_display_name,
-      discord_user_id = excluded.discord_user_id
-  `);
-  stmt.run(jiraAccountId, jiraDisplayName, discordUserId);
+): Promise<void> {
+  const { error } = await supabase
+    .from('user_mappings')
+    .upsert(
+      {
+        jira_account_id: jiraAccountId,
+        jira_display_name: jiraDisplayName,
+        discord_user_id: discordUserId,
+      },
+      { onConflict: 'jira_account_id' }
+    );
+
+  if (error) throw error;
 }
 
 // Jira 계정 ID로 Discord 사용자 ID 조회
-export function getDiscordUserByJiraAccount(jiraAccountId: string): string | null {
-  const stmt = db.prepare(`
-    SELECT discord_user_id FROM user_mappings WHERE jira_account_id = ?
-  `);
-  const row = stmt.get(jiraAccountId) as { discord_user_id: string } | undefined;
-  return row?.discord_user_id ?? null;
+export async function getDiscordUserByJiraAccount(jiraAccountId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('user_mappings')
+    .select('discord_user_id')
+    .eq('jira_account_id', jiraAccountId)
+    .single();
+
+  if (error || !data) return null;
+  return data.discord_user_id;
 }
 
 // Jira 표시 이름으로 Discord 사용자 ID 조회 (멘션 변환용)
-export function getDiscordUserByJiraDisplayName(displayName: string): string | null {
-  const stmt = db.prepare(`
-    SELECT discord_user_id FROM user_mappings WHERE jira_display_name = ?
-  `);
-  const row = stmt.get(displayName) as { discord_user_id: string } | undefined;
-  return row?.discord_user_id ?? null;
+export async function getDiscordUserByJiraDisplayName(displayName: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('user_mappings')
+    .select('discord_user_id')
+    .eq('jira_display_name', displayName)
+    .single();
+
+  if (error || !data) return null;
+  return data.discord_user_id;
 }
 
 // 사용자 매핑 삭제
-export function deleteUserMapping(jiraAccountId: string): void {
-  const stmt = db.prepare(`
-    DELETE FROM user_mappings WHERE jira_account_id = ?
-  `);
-  stmt.run(jiraAccountId);
+export async function deleteUserMapping(jiraAccountId: string): Promise<void> {
+  const { error } = await supabase
+    .from('user_mappings')
+    .delete()
+    .eq('jira_account_id', jiraAccountId);
+
+  if (error) throw error;
 }
 
 // 모든 사용자 매핑 조회
-export function getAllUserMappings(): UserMapping[] {
-  const stmt = db.prepare(`SELECT * FROM user_mappings ORDER BY created_at DESC`);
-  return stmt.all() as UserMapping[];
+export async function getAllUserMappings(): Promise<UserMapping[]> {
+  const { data, error } = await supabase
+    .from('user_mappings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as UserMapping[];
 }
 
 // ============ 코멘트-메시지 매핑 (수정/삭제 동기화용) ============
@@ -128,77 +180,102 @@ export interface CommentMessageMapping {
   jira_comment_id: string | null;
   thread_id: string;
   ticket_key: string;
-  source: 'discord' | 'jira'; // 원본 출처
+  source: 'discord' | 'jira';
   created_at: string;
 }
 
 // 코멘트-메시지 매핑 저장
-export function saveCommentMapping(
+export async function saveCommentMapping(
   discordMessageId: string,
   jiraCommentId: string | null,
   threadId: string,
   ticketKey: string,
   source: 'discord' | 'jira'
-): void {
-  const stmt = db.prepare(`
-    INSERT INTO comment_message_mappings (discord_message_id, jira_comment_id, thread_id, ticket_key, source)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  stmt.run(discordMessageId, jiraCommentId, threadId, ticketKey, source);
+): Promise<void> {
+  const { error } = await supabase
+    .from('comment_message_mappings')
+    .insert({
+      discord_message_id: discordMessageId,
+      jira_comment_id: jiraCommentId,
+      thread_id: threadId,
+      ticket_key: ticketKey,
+      source,
+    });
+
+  if (error) throw error;
 }
 
 // Jira 코멘트 ID 업데이트 (Discord에서 먼저 생성된 경우)
-export function updateJiraCommentId(discordMessageId: string, jiraCommentId: string): void {
-  const stmt = db.prepare(`
-    UPDATE comment_message_mappings SET jira_comment_id = ? WHERE discord_message_id = ?
-  `);
-  stmt.run(jiraCommentId, discordMessageId);
+export async function updateJiraCommentId(discordMessageId: string, jiraCommentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('comment_message_mappings')
+    .update({ jira_comment_id: jiraCommentId })
+    .eq('discord_message_id', discordMessageId);
+
+  if (error) throw error;
 }
 
 // Discord 메시지 ID로 매핑 조회
-export function getCommentMappingByDiscordMessage(discordMessageId: string): CommentMessageMapping | null {
-  const stmt = db.prepare(`
-    SELECT * FROM comment_message_mappings WHERE discord_message_id = ?
-  `);
-  return (stmt.get(discordMessageId) as CommentMessageMapping) ?? null;
+export async function getCommentMappingByDiscordMessage(discordMessageId: string): Promise<CommentMessageMapping | null> {
+  const { data, error } = await supabase
+    .from('comment_message_mappings')
+    .select('*')
+    .eq('discord_message_id', discordMessageId)
+    .single();
+
+  if (error || !data) return null;
+  return data as CommentMessageMapping;
 }
 
 // Jira 코멘트 ID로 매핑 조회
-export function getCommentMappingByJiraComment(jiraCommentId: string): CommentMessageMapping | null {
-  const stmt = db.prepare(`
-    SELECT * FROM comment_message_mappings WHERE jira_comment_id = ?
-  `);
-  return (stmt.get(jiraCommentId) as CommentMessageMapping) ?? null;
+export async function getCommentMappingByJiraComment(jiraCommentId: string): Promise<CommentMessageMapping | null> {
+  const { data, error } = await supabase
+    .from('comment_message_mappings')
+    .select('*')
+    .eq('jira_comment_id', jiraCommentId)
+    .single();
+
+  if (error || !data) return null;
+  return data as CommentMessageMapping;
 }
 
 // Discord 메시지 ID로 매핑 삭제
-export function deleteCommentMappingByDiscordMessage(discordMessageId: string): void {
-  const stmt = db.prepare(`
-    DELETE FROM comment_message_mappings WHERE discord_message_id = ?
-  `);
-  stmt.run(discordMessageId);
+export async function deleteCommentMappingByDiscordMessage(discordMessageId: string): Promise<void> {
+  const { error } = await supabase
+    .from('comment_message_mappings')
+    .delete()
+    .eq('discord_message_id', discordMessageId);
+
+  if (error) throw error;
 }
 
 // Jira 코멘트 ID로 매핑 삭제
-export function deleteCommentMappingByJiraComment(jiraCommentId: string): void {
-  const stmt = db.prepare(`
-    DELETE FROM comment_message_mappings WHERE jira_comment_id = ?
-  `);
-  stmt.run(jiraCommentId);
+export async function deleteCommentMappingByJiraComment(jiraCommentId: string): Promise<void> {
+  const { error } = await supabase
+    .from('comment_message_mappings')
+    .delete()
+    .eq('jira_comment_id', jiraCommentId);
+
+  if (error) throw error;
 }
 
 // 티켓 키로 모든 코멘트 매핑 삭제 (티켓 삭제 시)
-export function deleteCommentMappingsByTicketKey(ticketKey: string): void {
-  const stmt = db.prepare(`
-    DELETE FROM comment_message_mappings WHERE ticket_key = ?
-  `);
-  stmt.run(ticketKey);
+export async function deleteCommentMappingsByTicketKey(ticketKey: string): Promise<void> {
+  const { error } = await supabase
+    .from('comment_message_mappings')
+    .delete()
+    .eq('ticket_key', ticketKey);
+
+  if (error) throw error;
 }
 
 // 티켓 키로 모든 코멘트 매핑 조회
-export function getCommentMappingsByTicketKey(ticketKey: string): CommentMessageMapping[] {
-  const stmt = db.prepare(`
-    SELECT * FROM comment_message_mappings WHERE ticket_key = ?
-  `);
-  return stmt.all(ticketKey) as CommentMessageMapping[];
+export async function getCommentMappingsByTicketKey(ticketKey: string): Promise<CommentMessageMapping[]> {
+  const { data, error } = await supabase
+    .from('comment_message_mappings')
+    .select('*')
+    .eq('ticket_key', ticketKey);
+
+  if (error) throw error;
+  return (data ?? []) as CommentMessageMapping[];
 }

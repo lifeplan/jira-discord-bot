@@ -82,7 +82,7 @@ async function handleIssueCreated(
 
   try {
     // Jira 이슈 정보 파싱
-    const ticket = parseJiraIssue(payload.issue);
+    const ticket = await parseJiraIssue(payload.issue);
     fastify.log.info({ ticketKey: ticket.key }, 'Processing ticket');
 
     // Discord에 알림 전송 + 스레드 생성
@@ -90,7 +90,7 @@ async function handleIssueCreated(
     fastify.log.info({ threadId, ticketKey: ticket.key }, 'Thread created');
 
     // 매핑 저장
-    saveMapping(threadId, ticket.key, messageId, channelId);
+    await saveMapping(threadId, ticket.key, messageId, channelId);
     fastify.log.info({ threadId, ticketKey: ticket.key }, 'Mapping saved');
 
     return {
@@ -122,7 +122,7 @@ async function handleIssueUpdated(
   const ticketKey = payload.issue.key;
 
   // 매핑된 메시지 찾기
-  const mapping = getMappingByTicketKey(ticketKey);
+  const mapping = await getMappingByTicketKey(ticketKey);
   if (!mapping) {
     fastify.log.info({ ticketKey }, 'No mapping found for ticket (issue updated)');
     return { ignored: true, reason: 'no-mapping' };
@@ -130,7 +130,7 @@ async function handleIssueUpdated(
 
   try {
     // Jira 이슈 정보 파싱
-    const ticket = parseJiraIssue(payload.issue);
+    const ticket = await parseJiraIssue(payload.issue);
     fastify.log.info({ ticketKey: ticket.key }, 'Updating Discord message');
 
     // Discord 메시지 수정
@@ -164,7 +164,7 @@ async function handleCommentCreated(
   }
 
   const ticketKey = payload.issue.key;
-  const commentText = extractCommentText(payload.comment);
+  const commentText = await extractCommentText(payload.comment);
   const authorName = payload.comment.author?.displayName ?? 'Unknown';
 
   // Discord에서 보낸 코멘트면 무시 (이중 알림 방지)
@@ -174,7 +174,7 @@ async function handleCommentCreated(
   }
 
   // 매핑된 스레드 찾기
-  const mapping = getMappingByTicketKey(ticketKey);
+  const mapping = await getMappingByTicketKey(ticketKey);
   if (!mapping) {
     fastify.log.info({ ticketKey }, 'No mapping found for ticket');
     return { ignored: true, reason: 'no-mapping' };
@@ -187,7 +187,7 @@ async function handleCommentCreated(
 
     // 코멘트 매핑 저장 (수정/삭제 동기화용)
     const jiraCommentId = payload.comment.id;
-    saveCommentMapping(discordMessageId, jiraCommentId, mapping.thread_id, ticketKey, 'jira');
+    await saveCommentMapping(discordMessageId, jiraCommentId, mapping.thread_id, ticketKey, 'jira');
 
     return {
       success: true,
@@ -217,7 +217,7 @@ async function handleCommentUpdated(
 
   const ticketKey = payload.issue.key;
   const jiraCommentId = payload.comment.id;
-  const commentText = extractCommentText(payload.comment);
+  const commentText = await extractCommentText(payload.comment);
   const authorName = payload.comment.author?.displayName ?? 'Unknown';
 
   // Discord에서 보낸 코멘트면 무시
@@ -227,7 +227,7 @@ async function handleCommentUpdated(
   }
 
   // 매핑된 Discord 메시지 찾기
-  const commentMapping = getCommentMappingByJiraComment(jiraCommentId);
+  const commentMapping = await getCommentMappingByJiraComment(jiraCommentId);
   if (!commentMapping) {
     fastify.log.info({ ticketKey, jiraCommentId }, 'No mapping found for comment');
     return { ignored: true, reason: 'no-mapping' };
@@ -272,7 +272,7 @@ async function handleCommentDeleted(
   const jiraCommentId = payload.comment.id;
 
   // 매핑된 Discord 메시지 찾기
-  const commentMapping = getCommentMappingByJiraComment(jiraCommentId);
+  const commentMapping = await getCommentMappingByJiraComment(jiraCommentId);
   if (!commentMapping) {
     fastify.log.info({ ticketKey, jiraCommentId }, 'No mapping found for comment');
     return { ignored: true, reason: 'no-mapping' };
@@ -280,7 +280,7 @@ async function handleCommentDeleted(
 
   try {
     await deleteThreadMessage(commentMapping.thread_id, commentMapping.discord_message_id);
-    deleteCommentMappingByJiraComment(jiraCommentId);
+    await deleteCommentMappingByJiraComment(jiraCommentId);
     fastify.log.info({ ticketKey, jiraCommentId }, 'Discord message deleted');
 
     return {
@@ -312,7 +312,7 @@ async function handleIssueDeleted(
   const ticketKey = payload.issue.key;
 
   // 매핑된 Discord 메시지/스레드 찾기
-  const mapping = getMappingByTicketKey(ticketKey);
+  const mapping = await getMappingByTicketKey(ticketKey);
   if (!mapping) {
     fastify.log.info({ ticketKey }, 'No mapping found for ticket');
     return { ignored: true, reason: 'no-mapping' };
@@ -323,8 +323,8 @@ async function handleIssueDeleted(
     await deleteJiraNotification(mapping.channel_id, mapping.message_id, mapping.thread_id);
 
     // 매핑 정리
-    deleteCommentMappingsByTicketKey(ticketKey);
-    deleteMappingByThreadId(mapping.thread_id);
+    await deleteCommentMappingsByTicketKey(ticketKey);
+    await deleteMappingByThreadId(mapping.thread_id);
 
     fastify.log.info({ ticketKey }, 'Discord message and thread deleted');
 

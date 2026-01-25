@@ -15,7 +15,7 @@ export async function handleMessageDelete(
   const messageId = message.id;
 
   // 매핑된 코멘트 찾기
-  const mapping = getCommentMappingByDiscordMessage(messageId);
+  const mapping = await getCommentMappingByDiscordMessage(messageId);
   if (!mapping || !mapping.jira_comment_id) {
     return; // 매핑 없거나 Jira 코멘트 ID 없으면 무시
   }
@@ -23,18 +23,18 @@ export async function handleMessageDelete(
   // Discord에서 생성된 메시지만 삭제 동기화
   if (mapping.source !== 'discord') {
     // Jira에서 생성된 메시지면 매핑만 삭제
-    deleteCommentMappingByDiscordMessage(messageId);
+    await deleteCommentMappingByDiscordMessage(messageId);
     return;
   }
 
   try {
     await deleteComment(mapping.ticket_key, mapping.jira_comment_id);
-    deleteCommentMappingByDiscordMessage(messageId);
+    await deleteCommentMappingByDiscordMessage(messageId);
 
     console.log(`Jira comment deleted: ${mapping.jira_comment_id}`);
   } catch (error) {
     console.error('Failed to delete Jira comment:', error);
     // 실패해도 매핑은 삭제
-    deleteCommentMappingByDiscordMessage(messageId);
+    await deleteCommentMappingByDiscordMessage(messageId);
   }
 }
