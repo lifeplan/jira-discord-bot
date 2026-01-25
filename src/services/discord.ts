@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import type { JiraIssue } from './jira.js';
+import { extractDescriptionMarkdown } from './jira.js';
 
 // Discord 클라이언트 초기화
 export const discordClient = new Client({
@@ -49,8 +50,8 @@ export interface TicketInfo {
 
 // JiraIssue를 TicketInfo로 변환
 export function parseJiraIssue(issue: JiraIssue): TicketInfo {
-  const description =
-    issue.fields.description?.content?.[0]?.content?.[0]?.text ?? '';
+  // 마크다운 형식의 설명
+  const description = extractDescriptionMarkdown(issue.fields.description);
 
   return {
     key: issue.key,
@@ -58,7 +59,7 @@ export function parseJiraIssue(issue: JiraIssue): TicketInfo {
     type: issue.fields.issuetype?.name ?? 'Task',
     assignee: issue.fields.assignee?.displayName ?? null,
     priority: issue.fields.priority?.name ?? 'Medium',
-    description: description.slice(0, 200),
+    description: description.slice(0, 1000), // embed 제한 고려
     url: `${config.jira.host}/browse/${issue.key}`,
     status: issue.fields.status?.name ?? 'To Do',
   };
@@ -76,33 +77,7 @@ export async function sendJiraNotification(ticket: TicketInfo): Promise<{
     throw new Error(`Channel not found or not a text channel: ${config.discord.channelId}`);
   }
 
-  const emoji = ISSUE_TYPE_EMOJI[ticket.type] ?? '🎫';
-  const color = PRIORITY_COLORS[ticket.priority] ?? 0x0052cc;
-
-  const embed = new EmbedBuilder()
-    .setTitle(`${emoji} [${ticket.key}] ${ticket.summary}`)
-    .setURL(ticket.url)
-    .setColor(color)
-    .addFields(
-      { name: '타입', value: ticket.type, inline: true },
-      { name: '담당자', value: ticket.assignee ?? '미지정', inline: true },
-      { name: '우선순위', value: ticket.priority, inline: true }
-    )
-    .setFooter({
-      text: '💬 이 스레드에 댓글을 달면 Jira 티켓에 코멘트가 추가됩니다.',
-    })
-    .setTimestamp();
-
-  // 설명이 있으면 추가
-  if (ticket.description) {
-    embed.addFields({
-      name: '설명',
-      value: ticket.description.length > 200
-        ? `${ticket.description.slice(0, 197)}...`
-        : ticket.description,
-    });
-  }
-
+  const embed = createTicketEmbed(ticket);
   const message = await channel.send({ embeds: [embed] });
 
   // 스레드 생성 (제목 최대 100자)
@@ -139,6 +114,59 @@ export async function sendJiraCommentToThread(
   await thread.send({
     content: `**[Jira - ${authorName}]**\n${content}`,
   });
+}
+
+// Embed 생성 헬퍼 함수
+function createTicketEmbed(ticket: TicketInfo): EmbedBuilder {
+  const emoji = ISSUE_TYPE_EMOJI[ticket.type] ?? '🎫';
+  const color = PRIORITY_COLORS[ticket.priority] ?? 0x0052cc;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${emoji} [${ticket.key}] ${ticket.summary}`)
+    .setURL(ticket.url)
+    .setColor(color)
+    .addFields(
+      { name: '타입', value: ticket.type, inline: true },
+      { name: '담당자', value: ticket.assignee ?? '미지정', inline: true },
+      { name: '우선순위', value: ticket.priority, inline: true }
+    )
+    .setFooter({
+      text: '💬 이 스레드에 댓글을 달면 Jira 티켓에 코멘트가 추가됩니다.',
+    })
+    .setTimestamp();
+
+  // 설명이 있으면 추가 (1024자 제한)
+  if (ticket.description) {
+    embed.addFields({
+      name: '설명',
+      value: ticket.description.length > 1024
+        ? `${ticket.description.slice(0, 1021)}...`
+        : ticket.description,
+    });
+  }
+
+  return embed;
+}
+
+// Discord 메시지 수정 (이슈 업데이트 시)
+export async function updateJiraNotification(
+  channelId: string,
+  messageId: string,
+  ticket: TicketInfo
+): Promise<void> {
+  const channel = await discordClient.channels.fetch(channelId);
+
+  if (!channel || !(channel instanceof TextChannel)) {
+    throw new Error(`Channel not found or not a text channel: ${channelId}`);
+  }
+
+  const message = await channel.messages.fetch(messageId);
+  if (!message) {
+    throw new Error(`Message not found: ${messageId}`);
+  }
+
+  const embed = createTicketEmbed(ticket);
+  await message.edit({ embeds: [embed] });
 }
 
 // Discord 봇 로그인
