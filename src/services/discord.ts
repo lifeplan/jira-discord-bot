@@ -1,6 +1,7 @@
 import {
   Client,
   GatewayIntentBits,
+  Partials,
   TextChannel,
   ThreadChannel,
   EmbedBuilder,
@@ -17,6 +18,8 @@ export const discordClient = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
+  // messageUpdate/messageDelete 이벤트에서 캐시되지 않은 메시지 정보를 받기 위해 필요
+  partials: [Partials.Message, Partials.Channel],
 });
 
 // 우선순위별 색상
@@ -94,12 +97,12 @@ export async function sendJiraNotification(ticket: TicketInfo): Promise<{
   };
 }
 
-// Discord 스레드에 Jira 코멘트 전송
+// Discord 스레드에 Jira 코멘트 전송 (메시지 ID 반환)
 export async function sendJiraCommentToThread(
   threadId: string,
   authorName: string,
   content: string
-): Promise<void> {
+): Promise<string> {
   const thread = await discordClient.channels.fetch(threadId);
 
   if (!thread || !(thread instanceof ThreadChannel)) {
@@ -111,9 +114,11 @@ export async function sendJiraCommentToThread(
     await thread.setArchived(false);
   }
 
-  await thread.send({
+  const message = await thread.send({
     content: `**[Jira - ${authorName}]**\n${content}`,
   });
+
+  return message.id;
 }
 
 // Embed 생성 헬퍼 함수
@@ -167,6 +172,79 @@ export async function updateJiraNotification(
 
   const embed = createTicketEmbed(ticket);
   await message.edit({ embeds: [embed] });
+}
+
+// Discord 스레드 메시지 수정 (Jira 코멘트 수정 시)
+export async function editThreadMessage(
+  threadId: string,
+  messageId: string,
+  authorName: string,
+  content: string
+): Promise<void> {
+  const thread = await discordClient.channels.fetch(threadId);
+
+  if (!thread || !(thread instanceof ThreadChannel)) {
+    throw new Error(`Thread not found: ${threadId}`);
+  }
+
+  const message = await thread.messages.fetch(messageId);
+  if (!message) {
+    throw new Error(`Message not found: ${messageId}`);
+  }
+
+  await message.edit({
+    content: `**[Jira - ${authorName}]**\n${content}`,
+  });
+}
+
+// Discord 스레드 메시지 삭제 (Jira 코멘트 삭제 시)
+export async function deleteThreadMessage(
+  threadId: string,
+  messageId: string
+): Promise<void> {
+  const thread = await discordClient.channels.fetch(threadId);
+
+  if (!thread || !(thread instanceof ThreadChannel)) {
+    throw new Error(`Thread not found: ${threadId}`);
+  }
+
+  const message = await thread.messages.fetch(messageId);
+  if (message) {
+    await message.delete();
+  }
+}
+
+// Discord 메시지 + 스레드 삭제 (Jira 티켓 삭제 시)
+export async function deleteJiraNotification(
+  channelId: string,
+  messageId: string,
+  threadId: string
+): Promise<void> {
+  const channel = await discordClient.channels.fetch(channelId);
+
+  if (!channel || !(channel instanceof TextChannel)) {
+    throw new Error(`Channel not found: ${channelId}`);
+  }
+
+  // 스레드 먼저 삭제
+  try {
+    const thread = await discordClient.channels.fetch(threadId);
+    if (thread && thread instanceof ThreadChannel) {
+      await thread.delete();
+    }
+  } catch {
+    // 스레드가 이미 삭제된 경우 무시
+  }
+
+  // 메시지 삭제
+  try {
+    const message = await channel.messages.fetch(messageId);
+    if (message) {
+      await message.delete();
+    }
+  } catch {
+    // 메시지가 이미 삭제된 경우 무시
+  }
 }
 
 // Discord 봇 로그인

@@ -1,5 +1,5 @@
 import { Message } from 'discord.js';
-import { getTicketKeyByThreadId } from '../database/mappings.js';
+import { getTicketKeyByThreadId, saveCommentMapping } from '../database/mappings.js';
 import { addComment } from '../services/jira.js';
 
 export async function handleMessageCreate(message: Message): Promise<void> {
@@ -18,7 +18,10 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   try {
     // Jira에 코멘트 추가
     const authorName = message.member?.displayName ?? message.author.displayName ?? message.author.username;
-    await addComment(ticketKey, message.content, authorName);
+    const jiraCommentId = await addComment(ticketKey, message.content, authorName);
+
+    // 코멘트 매핑 저장 (수정/삭제 동기화용)
+    saveCommentMapping(message.id, jiraCommentId, threadId, ticketKey, 'discord');
 
     // 성공 리액션
     await message.react('✅');
