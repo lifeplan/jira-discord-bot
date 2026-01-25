@@ -52,9 +52,9 @@ export interface TicketInfo {
 }
 
 // JiraIssue를 TicketInfo로 변환
-export function parseJiraIssue(issue: JiraIssue): TicketInfo {
+export async function parseJiraIssue(issue: JiraIssue): Promise<TicketInfo> {
   // 마크다운 형식의 설명
-  const description = extractDescriptionMarkdown(issue.fields.description);
+  const description = await extractDescriptionMarkdown(issue.fields.description);
 
   return {
     key: issue.key,

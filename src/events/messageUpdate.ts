@@ -27,7 +27,7 @@ export async function handleMessageUpdate(
   if (oldContent !== null && oldContent === message.content) return;
 
   // 매핑된 코멘트 찾기
-  const mapping = getCommentMappingByDiscordMessage(message.id);
+  const mapping = await getCommentMappingByDiscordMessage(message.id);
   if (!mapping || !mapping.jira_comment_id) {
     return; // 매핑 없거나 Jira 코멘트 ID 없으면 무시
   }

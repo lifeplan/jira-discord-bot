@@ -29,4 +29,8 @@ export const config = {
     apiToken: required('JIRA_API_TOKEN'),
     projectKey: optional('JIRA_PROJECT_KEY', ''),
   },
+  supabase: {
+    url: required('SUPABASE_URL'),
+    anonKey: required('SUPABASE_ANON_KEY'),
+  },
 } as const;

@@ -183,7 +183,7 @@ interface ADFNode {
 }
 
 // Jira ADF(Atlassian Document Format)를 Discord Markdown으로 변환
-function convertADFToMarkdown(node: unknown, listDepth = 0): string {
+async function convertADFToMarkdown(node: unknown, listDepth = 0): Promise<string> {
   if (!node || typeof node !== 'object') return '';
 
   const n = node as ADFNode;
@@ -225,11 +225,15 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
   }
 
   // 컨텐츠가 있는 노드 처리
-  const children = n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('') ?? '';
+  const children = n.content
+    ? (await Promise.all(n.content.map(child => convertADFToMarkdown(child, listDepth)))).join('')
+    : '';
 
   switch (n.type) {
     case 'doc':
-      return n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('\n\n') ?? '';
+      return n.content
+        ? (await Promise.all(n.content.map(child => convertADFToMarkdown(child, listDepth)))).join('\n\n')
+        : '';
 
     case 'paragraph':
       return children;
@@ -241,17 +245,21 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
     }
 
     case 'bulletList':
-      return n.content?.map(child => convertADFToMarkdown(child, listDepth)).join('\n') ?? '';
+      return n.content
+        ? (await Promise.all(n.content.map(child => convertADFToMarkdown(child, listDepth)))).join('\n')
+        : '';
 
-    case 'orderedList':
-      return n.content?.map((child, i) => {
-        const itemContent = convertADFToMarkdown(child, listDepth);
-        return itemContent.replace(/^- /, `${i + 1}. `);
-      }).join('\n') ?? '';
+    case 'orderedList': {
+      if (!n.content) return '';
+      const items = await Promise.all(n.content.map(child => convertADFToMarkdown(child, listDepth)));
+      return items.map((itemContent, i) => itemContent.replace(/^- /, `${i + 1}. `)).join('\n');
+    }
 
     case 'listItem': {
       const indent = '  '.repeat(listDepth);
-      const itemContent = n.content?.map(child => convertADFToMarkdown(child, listDepth + 1)).join('') ?? '';
+      const itemContent = n.content
+        ? (await Promise.all(n.content.map(child => convertADFToMarkdown(child, listDepth + 1)))).join('')
+        : '';
       return `${indent}- ${itemContent}`;
     }
 
@@ -275,7 +283,7 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
 
       // 1. Jira 계정 ID로 Discord 사용자 찾기
       if (jiraAccountId) {
-        const discordUserId = getDiscordUserByJiraAccount(jiraAccountId);
+        const discordUserId = await getDiscordUserByJiraAccount(jiraAccountId);
         if (discordUserId) {
           return `<@${discordUserId}>`;
         }
@@ -283,7 +291,7 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
 
       // 2. Jira 표시 이름으로 Discord 사용자 찾기
       if (jiraDisplayName) {
-        const discordUserId = getDiscordUserByJiraDisplayName(jiraDisplayName);
+        const discordUserId = await getDiscordUserByJiraDisplayName(jiraDisplayName);
         if (discordUserId) {
           return `<@${discordUserId}>`;
         }
@@ -332,7 +340,7 @@ function extractTextFromADF(node: unknown): string {
 }
 
 // Jira 코멘트 본문 추출 (Discord Markdown으로 변환)
-export function extractCommentText(comment: JiraComment): string {
+export async function extractCommentText(comment: JiraComment): Promise<string> {
   if (!comment.body) return '';
 
   // body가 문자열인 경우 (Jira Webhook 기본 형식)
@@ -342,16 +350,16 @@ export function extractCommentText(comment: JiraComment): string {
 
   // body가 ADF 객체인 경우 - Markdown으로 변환
   if (comment.body.content) {
-    return convertADFToMarkdown({ type: 'doc', content: comment.body.content });
+    return await convertADFToMarkdown({ type: 'doc', content: comment.body.content });
   }
 
   return '';
 }
 
 // Jira 설명(description) 추출 (Discord Markdown으로 변환)
-export function extractDescriptionMarkdown(description: JiraIssue['fields']['description']): string {
+export async function extractDescriptionMarkdown(description: JiraIssue['fields']['description']): Promise<string> {
   if (!description?.content) return '';
-  return convertADFToMarkdown({ type: 'doc', content: description.content });
+  return await convertADFToMarkdown({ type: 'doc', content: description.content });
 }
 
 // 단순 텍스트만 추출 (설명 미리보기용)

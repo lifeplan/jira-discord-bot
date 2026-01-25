@@ -47,7 +47,7 @@ export const linkCommand = {
       const jiraName = interaction.options.getString('jira_name', true);
       const discordUserId = interaction.user.id;
 
-      saveUserMapping(jiraId, jiraName, discordUserId);
+      await saveUserMapping(jiraId, jiraName, discordUserId);
 
       await interaction.reply({
         content: `✅ 연결 완료!\n\n**Jira ID:** ${jiraId}\n**Jira 이름:** ${jiraName}\n**Discord:** <@${discordUserId}>`,
@@ -58,7 +58,7 @@ export const linkCommand = {
     if (subcommand === 'remove') {
       const jiraId = interaction.options.getString('jira_id', true);
 
-      deleteUserMapping(jiraId);
+      await deleteUserMapping(jiraId);
 
       await interaction.reply({
         content: `✅ 연결 해제 완료: ${jiraId}`,
@@ -67,7 +67,7 @@ export const linkCommand = {
     }
 
     if (subcommand === 'list') {
-      const mappings = getAllUserMappings();
+      const mappings = await getAllUserMappings();
 
       if (mappings.length === 0) {
         await interaction.reply({
