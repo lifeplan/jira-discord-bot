@@ -164,6 +164,10 @@ async function handleCommentCreated(
   }
 
   const ticketKey = payload.issue.key;
+
+  // 디버깅: 원본 코멘트 데이터 로깅
+  fastify.log.info({ commentBody: JSON.stringify(payload.comment.body) }, 'Raw comment body');
+
   const commentText = await extractCommentText(payload.comment);
   const authorName = payload.comment.author?.displayName ?? 'Unknown';
 
@@ -217,6 +221,10 @@ async function handleCommentUpdated(
 
   const ticketKey = payload.issue.key;
   const jiraCommentId = payload.comment.id;
+
+  // 디버깅: 원본 코멘트 데이터 로깅
+  fastify.log.info({ commentBody: JSON.stringify(payload.comment.body) }, 'Raw comment body (update)');
+
   const commentText = await extractCommentText(payload.comment);
   const authorName = payload.comment.author?.displayName ?? 'Unknown';
 
