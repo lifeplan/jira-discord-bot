@@ -210,6 +210,8 @@ async function convertADFToMarkdown(node: unknown, listDepth = 0): Promise<strin
           case 'link': {
             let href = mark.attrs?.href as string;
             if (href) {
+              // URL 디코딩 후 smart-link 파싱
+              href = decodeURIComponent(href);
               // Jira smart-link 형식: "url|url|smart-link" -> 첫 번째 URL만 사용
               if (href.includes('|')) {
                 href = href.split('|')[0];
@@ -308,6 +310,8 @@ async function convertADFToMarkdown(node: unknown, listDepth = 0): Promise<strin
       // Jira smart-link (URL 붙여넣기 시 생성)
       let url = n.attrs?.url as string;
       if (url) {
+        // URL 디코딩 후 smart-link 파싱
+        url = decodeURIComponent(url);
         // smart-link 형식: "url|url|smart-link" -> 첫 번째 URL만 사용
         if (url.includes('|')) {
           url = url.split('|')[0];
