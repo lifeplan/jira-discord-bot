@@ -343,13 +343,25 @@ function extractTextFromADF(node: unknown): string {
   return '';
 }
 
+// Jira smart-link 패턴을 일반 URL로 변환
+// 패턴: [url|url|smart-link] 또는 [text|url|smart-link] -> url만 추출
+function parseSmartLinks(text: string): string {
+  // [url|url|smart-link] 패턴 매칭
+  return text.replace(/\[([^\]|]+)\|([^\]|]+)\|smart-link\]/g, (_match, first, second) => {
+    // 첫 번째가 URL이면 사용, 아니면 두 번째 사용
+    const url = first.startsWith('http') ? first : second;
+    return url;
+  });
+}
+
 // Jira 코멘트 본문 추출 (Discord Markdown으로 변환)
 export async function extractCommentText(comment: JiraComment): Promise<string> {
   if (!comment.body) return '';
 
   // body가 문자열인 경우 (Jira Webhook 기본 형식)
   if (typeof comment.body === 'string') {
-    return comment.body;
+    // smart-link 패턴 파싱 후 반환
+    return parseSmartLinks(comment.body);
   }
 
   // body가 ADF 객체인 경우 - Markdown으로 변환
