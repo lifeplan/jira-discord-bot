@@ -207,10 +207,17 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
           case 'strike':
             text = `~~${text}~~`;
             break;
-          case 'link':
-            const href = mark.attrs?.href as string;
-            if (href) text = `[${text}](${href})`;
+          case 'link': {
+            let href = mark.attrs?.href as string;
+            if (href) {
+              // Jira smart-link 형식: "url|url|smart-link" -> 첫 번째 URL만 사용
+              if (href.includes('|')) {
+                href = href.split('|')[0];
+              }
+              text = `[${text}](${href})`;
+            }
             break;
+          }
         }
       }
     }
@@ -288,6 +295,19 @@ function convertADFToMarkdown(node: unknown, listDepth = 0): string {
 
     case 'emoji':
       return n.attrs?.shortName as string ?? '';
+
+    case 'inlineCard': {
+      // Jira smart-link (URL 붙여넣기 시 생성)
+      let url = n.attrs?.url as string;
+      if (url) {
+        // smart-link 형식: "url|url|smart-link" -> 첫 번째 URL만 사용
+        if (url.includes('|')) {
+          url = url.split('|')[0];
+        }
+        return url;
+      }
+      return '';
+    }
 
     default:
       return children;
