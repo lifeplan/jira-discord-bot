@@ -179,7 +179,8 @@ export async function editThreadMessage(
   threadId: string,
   messageId: string,
   authorName: string,
-  content: string
+  content: string,
+  isDiscordOriginated = false
 ): Promise<void> {
   const thread = await discordClient.channels.fetch(threadId);
 
@@ -192,8 +193,14 @@ export async function editThreadMessage(
     throw new Error(`Message not found: ${messageId}`);
   }
 
+  // Discord에서 시작된 메시지는 "**이름:** 내용" 형식
+  // Jira에서 시작된 메시지는 "**[Jira - 이름]**\n내용" 형식
+  const formattedContent = isDiscordOriginated
+    ? `**${authorName}:** ${content}`
+    : `**[Jira - ${authorName}]**\n${content}`;
+
   await message.edit({
-    content: `**[Jira - ${authorName}]**\n${content}`,
+    content: formattedContent,
   });
 }
 
