@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { Events, ChatInputCommandInteraction } from 'discord.js';
+import { Events, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { config } from './config.js';
 import { discordClient, loginDiscord } from './services/discord.js';
 import { webhookRoutes } from './routes/webhook.js';
@@ -55,11 +55,10 @@ discordClient.on(Events.InteractionCreate, async (interaction) => {
     await command.execute(interaction as ChatInputCommandInteraction);
   } catch (error) {
     server.log.error(error, 'Failed to execute command');
-    const reply = { content: '명령어 실행 중 오류가 발생했습니다.', ephemeral: true };
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
+      await interaction.followUp({ content: '명령어 실행 중 오류가 발생했습니다.', flags: [MessageFlags.Ephemeral] });
     } else {
-      await interaction.reply(reply);
+      await interaction.reply({ content: '명령어 실행 중 오류가 발생했습니다.', flags: [MessageFlags.Ephemeral] });
     }
   }
 });

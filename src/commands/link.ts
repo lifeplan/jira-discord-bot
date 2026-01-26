@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { saveUserMapping, deleteUserMapping, getAllUserMappings } from '../database/mappings.js';
 
 export const linkCommand = {
@@ -51,7 +51,7 @@ export const linkCommand = {
 
       await interaction.reply({
         content: `✅ 연결 완료!\n\n**Jira ID:** ${jiraId}\n**Jira 이름:** ${jiraName}\n**Discord:** <@${discordUserId}>`,
-        ephemeral: true,
+        flags: [MessageFlags.Ephemeral],
       });
     }
 
@@ -62,7 +62,7 @@ export const linkCommand = {
 
       await interaction.reply({
         content: `✅ 연결 해제 완료: ${jiraId}`,
-        ephemeral: true,
+        flags: [MessageFlags.Ephemeral],
       });
     }
 
@@ -72,7 +72,7 @@ export const linkCommand = {
       if (mappings.length === 0) {
         await interaction.reply({
           content: '연결된 계정이 없습니다.',
-          ephemeral: true,
+          flags: [MessageFlags.Ephemeral],
         });
         return;
       }
@@ -83,7 +83,7 @@ export const linkCommand = {
 
       await interaction.reply({
         content: `📋 **연결된 계정 목록**\n\n${list}`,
-        ephemeral: true,
+        flags: [MessageFlags.Ephemeral],
       });
     }
   },
