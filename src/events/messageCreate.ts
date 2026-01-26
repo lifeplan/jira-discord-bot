@@ -1,5 +1,5 @@
 import { Message } from 'discord.js';
-import { getTicketKeyByThreadId, saveCommentMapping } from '../database/mappings.js';
+import { getTicketKeyByThreadId, saveCommentMapping, convertDiscordMentionsToJira } from '../database/mappings.js';
 import { addComment } from '../services/jira.js';
 
 export async function handleMessageCreate(message: Message): Promise<void> {
@@ -16,9 +16,12 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   if (!ticketKey) return;
 
   try {
+    // Discord 멘션을 Jira 멘션으로 변환
+    const convertedContent = await convertDiscordMentionsToJira(message.content);
+
     // Jira에 코멘트 추가
     const authorName = message.member?.displayName ?? message.author.displayName ?? message.author.username;
-    const jiraCommentId = await addComment(ticketKey, message.content, authorName);
+    const jiraCommentId = await addComment(ticketKey, convertedContent, authorName);
 
     // 코멘트 매핑 저장 (수정/삭제 동기화용)
     await saveCommentMapping(message.id, jiraCommentId, threadId, ticketKey, 'discord');
