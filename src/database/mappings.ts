@@ -139,6 +139,38 @@ export async function getDiscordUserByJiraAccount(jiraAccountId: string): Promis
   return data.discord_user_id;
 }
 
+// Discord 사용자 ID로 Jira 계정 ID 조회 (Discord → Jira 멘션 변환용)
+export async function getJiraAccountByDiscordUser(discordUserId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('user_mappings')
+    .select('jira_account_id')
+    .eq('discord_user_id', discordUserId)
+    .single();
+
+  if (error || !data) return null;
+  return data.jira_account_id;
+}
+
+// Discord 멘션을 Jira 멘션으로 변환
+export async function convertDiscordMentionsToJira(content: string): Promise<string> {
+  // Discord 멘션 패턴: <@123456789> 또는 <@!123456789>
+  const mentionRegex = /<@!?(\d+)>/g;
+  const matches = [...content.matchAll(mentionRegex)];
+
+  let result = content;
+  for (const match of matches) {
+    const discordUserId = match[1];
+    const jiraAccountId = await getJiraAccountByDiscordUser(discordUserId);
+
+    if (jiraAccountId) {
+      // Jira 멘션 형식으로 변환
+      result = result.replace(match[0], `[~accountid:${jiraAccountId}]`);
+    }
+  }
+
+  return result;
+}
+
 // Jira 표시 이름으로 Discord 사용자 ID 조회 (멘션 변환용)
 export async function getDiscordUserByJiraDisplayName(displayName: string): Promise<string | null> {
   const { data, error } = await supabase

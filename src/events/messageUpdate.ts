@@ -1,5 +1,5 @@
 import { Message, PartialMessage } from 'discord.js';
-import { getCommentMappingByDiscordMessage } from '../database/mappings.js';
+import { getCommentMappingByDiscordMessage, convertDiscordMentionsToJira } from '../database/mappings.js';
 import { updateComment } from '../services/jira.js';
 
 export async function handleMessageUpdate(
@@ -39,10 +39,13 @@ export async function handleMessageUpdate(
     const authorName = message.author?.displayName ?? message.author?.username ?? 'Unknown';
     const content = message.content ?? '';
 
+    // Discord 멘션을 Jira 멘션으로 변환
+    const convertedContent = await convertDiscordMentionsToJira(content);
+
     await updateComment(
       mapping.ticket_key,
       mapping.jira_comment_id,
-      content,
+      convertedContent,
       authorName
     );
 
