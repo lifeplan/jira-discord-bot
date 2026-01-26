@@ -151,6 +151,18 @@ export async function getJiraAccountByDiscordUser(discordUserId: string): Promis
   return data.jira_account_id;
 }
 
+// Jira 계정 ID로 표시 이름 조회 (Jira ADF 멘션 노드용)
+export async function getJiraDisplayNameByAccount(jiraAccountId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('user_mappings')
+    .select('jira_display_name')
+    .eq('jira_account_id', jiraAccountId)
+    .single();
+
+  if (error || !data) return null;
+  return data.jira_display_name;
+}
+
 // Discord 멘션을 Jira 멘션으로 변환
 export async function convertDiscordMentionsToJira(content: string): Promise<string> {
   // Discord 멘션 패턴: <@123456789> 또는 <@!123456789>

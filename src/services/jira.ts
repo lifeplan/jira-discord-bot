@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { getDiscordUserByJiraAccount, getDiscordUserByJiraDisplayName } from '../database/mappings.js';
+import { getDiscordUserByJiraAccount, getDiscordUserByJiraDisplayName, getJiraDisplayNameByAccount } from '../database/mappings.js';
 
 const auth = Buffer.from(`${config.jira.email}:${config.jira.apiToken}`).toString('base64');
 
@@ -48,12 +48,73 @@ interface JiraCommentResponse {
   };
 }
 
+// Jira ADF 콘텐츠 노드 타입
+interface ADFContentNode {
+  type: string;
+  text?: string;
+  attrs?: Record<string, string>;
+}
+
+// [~accountid:xxx] 패턴을 Jira ADF 멘션 노드로 변환
+async function convertToADFContent(content: string): Promise<ADFContentNode[]> {
+  const mentionRegex = /\[~accountid:([^\]]+)\]/g;
+  const nodes: ADFContentNode[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // 멘션 앞의 텍스트
+    if (match.index > lastIndex) {
+      nodes.push({
+        type: 'text',
+        text: content.slice(lastIndex, match.index),
+      });
+    }
+
+    // 멘션 노드
+    const jiraAccountId = match[1];
+    const displayName = await getJiraDisplayNameByAccount(jiraAccountId);
+
+    nodes.push({
+      type: 'mention',
+      attrs: {
+        id: jiraAccountId,
+        text: `@${displayName ?? 'user'}`,
+        accessLevel: '',
+      },
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // 남은 텍스트
+  if (lastIndex < content.length) {
+    nodes.push({
+      type: 'text',
+      text: content.slice(lastIndex),
+    });
+  }
+
+  // 노드가 없으면 전체를 텍스트로
+  if (nodes.length === 0) {
+    nodes.push({ type: 'text', text: content });
+  }
+
+  return nodes;
+}
+
 // Jira 티켓에 코멘트 추가 (코멘트 ID 반환)
 export async function addComment(
   issueKey: string,
   content: string,
   authorName: string
 ): Promise<string> {
+  // 헤더와 본문을 분리하여 ADF 노드 생성
+  const headerNodes: ADFContentNode[] = [
+    { type: 'text', text: `[Discord - ${authorName}]` },
+  ];
+  const contentNodes = await convertToADFContent(content);
+
   const response = await jiraFetch<JiraCommentResponse>(`/issue/${issueKey}/comment`, {
     method: 'POST',
     body: JSON.stringify({
@@ -63,12 +124,11 @@ export async function addComment(
         content: [
           {
             type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: `[Discord - ${authorName}]\n \n${content}`,
-              },
-            ],
+            content: headerNodes,
+          },
+          {
+            type: 'paragraph',
+            content: contentNodes,
           },
         ],
       },
@@ -84,6 +144,12 @@ export async function updateComment(
   content: string,
   authorName: string
 ): Promise<void> {
+  // 헤더와 본문을 분리하여 ADF 노드 생성
+  const headerNodes: ADFContentNode[] = [
+    { type: 'text', text: `[Discord - ${authorName}]` },
+  ];
+  const contentNodes = await convertToADFContent(content);
+
   await jiraFetch(`/issue/${issueKey}/comment/${commentId}`, {
     method: 'PUT',
     body: JSON.stringify({
@@ -93,12 +159,11 @@ export async function updateComment(
         content: [
           {
             type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: `[Discord - ${authorName}]\n \n${content}`,
-              },
-            ],
+            content: headerNodes,
+          },
+          {
+            type: 'paragraph',
+            content: contentNodes,
           },
         ],
       },
