@@ -127,16 +127,41 @@ export async function saveUserMapping(
   if (error) throw error;
 }
 
-// Jira 계정 ID로 Discord 사용자 ID 조회
+// Jira 계정 ID로 Discord 사용자 ID 조회 (ID 형식 정규화 포함)
 export async function getDiscordUserByJiraAccount(jiraAccountId: string): Promise<string | null> {
+  // 1. 먼저 정확한 ID로 조회
   const { data, error } = await supabase
     .from('user_mappings')
     .select('discord_user_id')
     .eq('jira_account_id', jiraAccountId)
     .single();
 
-  if (error || !data) return null;
-  return data.discord_user_id;
+  if (!error && data) return data.discord_user_id;
+
+  // 2. ID 형식 변환 후 재시도 (712020:uuid ↔ uuid)
+  let alternateId: string;
+  if (jiraAccountId.includes(':')) {
+    // 712020:uuid → uuid 로 시도
+    alternateId = jiraAccountId.split(':').pop() ?? jiraAccountId;
+  } else {
+    // uuid → 712020:uuid 형식으로 시도 (LIKE 검색)
+    const { data: likeData } = await supabase
+      .from('user_mappings')
+      .select('discord_user_id')
+      .like('jira_account_id', `%:${jiraAccountId}`)
+      .single();
+
+    if (likeData) return likeData.discord_user_id;
+    return null;
+  }
+
+  const { data: altData } = await supabase
+    .from('user_mappings')
+    .select('discord_user_id')
+    .eq('jira_account_id', alternateId)
+    .single();
+
+  return altData?.discord_user_id ?? null;
 }
 
 // Discord 사용자 ID로 Jira 계정 ID 조회 (Discord → Jira 멘션 변환용)
@@ -151,16 +176,41 @@ export async function getJiraAccountByDiscordUser(discordUserId: string): Promis
   return data.jira_account_id;
 }
 
-// Jira 계정 ID로 표시 이름 조회 (Jira ADF 멘션 노드용)
+// Jira 계정 ID로 표시 이름 조회 (Jira ADF 멘션 노드용, ID 형식 정규화 포함)
 export async function getJiraDisplayNameByAccount(jiraAccountId: string): Promise<string | null> {
+  // 1. 먼저 정확한 ID로 조회
   const { data, error } = await supabase
     .from('user_mappings')
     .select('jira_display_name')
     .eq('jira_account_id', jiraAccountId)
     .single();
 
-  if (error || !data) return null;
-  return data.jira_display_name;
+  if (!error && data) return data.jira_display_name;
+
+  // 2. ID 형식 변환 후 재시도 (712020:uuid ↔ uuid)
+  let alternateId: string;
+  if (jiraAccountId.includes(':')) {
+    // 712020:uuid → uuid 로 시도
+    alternateId = jiraAccountId.split(':').pop() ?? jiraAccountId;
+  } else {
+    // uuid → 712020:uuid 형식으로 시도 (LIKE 검색)
+    const { data: likeData } = await supabase
+      .from('user_mappings')
+      .select('jira_display_name')
+      .like('jira_account_id', `%:${jiraAccountId}`)
+      .single();
+
+    if (likeData) return likeData.jira_display_name;
+    return null;
+  }
+
+  const { data: altData } = await supabase
+    .from('user_mappings')
+    .select('jira_display_name')
+    .eq('jira_account_id', alternateId)
+    .single();
+
+  return altData?.jira_display_name ?? null;
 }
 
 // Discord 멘션을 Jira 멘션으로 변환
