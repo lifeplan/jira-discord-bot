@@ -354,14 +354,36 @@ function parseSmartLinks(text: string): string {
   });
 }
 
+// Jira 멘션 패턴을 Discord 멘션으로 변환
+// 패턴: [~accountid:xxx] -> <@discordUserId>
+async function convertJiraMentionsToDiscord(text: string): Promise<string> {
+  const mentionRegex = /\[~accountid:([^\]]+)\]/g;
+  const matches = [...text.matchAll(mentionRegex)];
+
+  let result = text;
+  for (const match of matches) {
+    const jiraAccountId = match[1];
+    const discordUserId = await getDiscordUserByJiraAccount(jiraAccountId);
+
+    if (discordUserId) {
+      result = result.replace(match[0], `<@${discordUserId}>`);
+    }
+  }
+
+  return result;
+}
+
 // Jira 코멘트 본문 추출 (Discord Markdown으로 변환)
 export async function extractCommentText(comment: JiraComment): Promise<string> {
   if (!comment.body) return '';
 
   // body가 문자열인 경우 (Jira Webhook 기본 형식)
   if (typeof comment.body === 'string') {
-    // smart-link 패턴 파싱 후 반환
-    return parseSmartLinks(comment.body);
+    // smart-link 패턴 파싱
+    let result = parseSmartLinks(comment.body);
+    // Jira 멘션을 Discord 멘션으로 변환
+    result = await convertJiraMentionsToDiscord(result);
+    return result;
   }
 
   // body가 ADF 객체인 경우 - Markdown으로 변환
