@@ -201,6 +201,7 @@ export async function editThreadMessage(
 
   await message.edit({
     content: formattedContent,
+    allowedMentions: { parse: ['users'] }, // 멘션 렌더링 허용
   });
 }
 
