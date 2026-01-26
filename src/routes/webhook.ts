@@ -226,13 +226,7 @@ async function handleCommentUpdated(
   fastify.log.info({ commentBody: JSON.stringify(payload.comment.body) }, 'Raw comment body (update)');
 
   const commentText = await extractCommentText(payload.comment);
-  const authorName = payload.comment.author?.displayName ?? 'Unknown';
-
-  // Discord에서 보낸 코멘트면 무시
-  if (commentText.startsWith(DISCORD_COMMENT_PREFIX)) {
-    fastify.log.info({ ticketKey }, 'Ignoring Discord-originated comment update');
-    return { ignored: true, reason: 'discord-originated' };
-  }
+  const jiraAuthorName = payload.comment.author?.displayName ?? 'Unknown';
 
   // 매핑된 Discord 메시지 찾기
   const commentMapping = await getCommentMappingByJiraComment(jiraCommentId);
@@ -242,13 +236,34 @@ async function handleCommentUpdated(
   }
 
   try {
-    await editThreadMessage(
-      commentMapping.thread_id,
-      commentMapping.discord_message_id,
-      authorName,
-      commentText
-    );
-    fastify.log.info({ ticketKey, jiraCommentId }, 'Discord message updated');
+    // Discord에서 보낸 코멘트인 경우 (봇 메시지 형식으로 수정)
+    if (commentText.startsWith(DISCORD_COMMENT_PREFIX)) {
+      // "[Discord - 이름]\n\n내용" 에서 이름과 내용 추출
+      const match = commentText.match(/^\[Discord - ([^\]]+)\]\s*\n?\s*\n?([\s\S]*)$/);
+      if (match) {
+        const discordAuthorName = match[1];
+        const content = match[2].trim();
+        // 봇 메시지 형식: "**이름:** 내용"
+        await editThreadMessage(
+          commentMapping.thread_id,
+          commentMapping.discord_message_id,
+          discordAuthorName,
+          content,
+          true // isDiscordOriginated - 봇 메시지 형식 사용
+        );
+        fastify.log.info({ ticketKey, jiraCommentId }, 'Discord-originated message updated');
+      }
+    } else {
+      // Jira에서 보낸 코멘트 (기존 형식)
+      await editThreadMessage(
+        commentMapping.thread_id,
+        commentMapping.discord_message_id,
+        jiraAuthorName,
+        commentText,
+        false
+      );
+      fastify.log.info({ ticketKey, jiraCommentId }, 'Jira-originated message updated');
+    }
 
     return {
       success: true,
