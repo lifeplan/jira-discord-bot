@@ -3,6 +3,7 @@ import { Events, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { config } from './config.js';
 import { discordClient, loginDiscord } from './services/discord.js';
 import { webhookRoutes } from './routes/webhook.js';
+import { meetingRoutes } from './routes/meeting.js';
 import { handleMessageCreate } from './events/messageCreate.js';
 import { handleMessageUpdate } from './events/messageUpdate.js';
 import { handleMessageDelete } from './events/messageDelete.js';
@@ -30,6 +31,7 @@ server.get('/health', async () => {
 
 // Webhook 라우트 등록
 server.register(webhookRoutes);
+server.register(meetingRoutes);
 
 // Discord 봇 이벤트
 discordClient.once(Events.ClientReady, async (client) => {
@@ -117,11 +119,7 @@ function stopSelfPing(): void {
 // 서버 시작
 async function start(): Promise<void> {
   try {
-    // Discord 봇 로그인
-    server.log.info('Logging in to Discord...');
-    await loginDiscord();
-
-    // HTTP 서버 시작
+    // HTTP 서버 먼저 시작 (Render 포트 감지를 위해)
     await server.listen({
       port: config.server.port,
       host: '0.0.0.0',
@@ -132,6 +130,12 @@ async function start(): Promise<void> {
 
     // Self-ping 시작 (Render sleep 방지)
     startSelfPing();
+
+    // Discord 봇 로그인 (서버 시작 후 백그라운드에서)
+    server.log.info('Logging in to Discord...');
+    loginDiscord().catch((err) => {
+      server.log.error(err, 'Failed to login to Discord');
+    });
   } catch (err) {
     server.log.error(err, 'Failed to start server');
     process.exit(1);

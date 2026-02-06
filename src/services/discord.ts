@@ -259,3 +259,54 @@ export async function deleteJiraNotification(
 export async function loginDiscord(): Promise<void> {
   await discordClient.login(config.discord.token);
 }
+
+// 회의록 요약 정보
+export interface MeetingSummaryInfo {
+  title: string;
+  date: string;
+  summary: string;
+  confluenceUrl?: string;
+  highlights?: string[];
+}
+
+// Discord에 회의록 요약 전송 (#문서-노티 채널)
+export async function sendMeetingSummary(
+  channelId: string,
+  meeting: MeetingSummaryInfo
+): Promise<string> {
+  const channel = await discordClient.channels.fetch(channelId);
+
+  if (!channel || !(channel instanceof TextChannel)) {
+    throw new Error(`Channel not found or not a text channel: ${channelId}`);
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📝 [${meeting.date}] ${meeting.title}`)
+    .setColor(0x5865f2) // Discord 브랜드 블루
+    .setDescription(meeting.summary)
+    .setTimestamp();
+
+  // 주요 포인트가 있으면 추가
+  if (meeting.highlights && meeting.highlights.length > 0) {
+    embed.addFields({
+      name: '주요 논의',
+      value: meeting.highlights.map(h => `• ${h}`).join('\n'),
+    });
+  }
+
+  // Confluence 링크가 있으면 추가
+  if (meeting.confluenceUrl) {
+    embed.addFields({
+      name: '📄 문서 링크',
+      value: meeting.confluenceUrl,
+    });
+  }
+
+  embed.setFooter({
+    text: '🤖 AI로 자동 생성된 회의록 요약입니다.',
+  });
+
+  const message = await channel.send({ embeds: [embed] });
+
+  return message.id;
+}
