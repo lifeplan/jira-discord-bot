@@ -257,16 +257,7 @@ export async function deleteJiraNotification(
 
 // Discord 봇 로그인
 export async function loginDiscord(): Promise<void> {
-  console.log('[Discord] Starting login with token length:', config.discord.token.length);
-  console.log('[Discord] Token prefix:', config.discord.token.slice(0, 20) + '...');
-
-  try {
-    await discordClient.login(config.discord.token);
-    console.log('[Discord] Login completed successfully');
-  } catch (error) {
-    console.error('[Discord] Login failed:', error);
-    throw error;
-  }
+  await discordClient.login(config.discord.token);
 }
 
 // 회의록 요약 정보
