@@ -133,9 +133,13 @@ async function start(): Promise<void> {
 
     // Discord 봇 로그인 (서버 시작 후 백그라운드에서)
     server.log.info('Logging in to Discord...');
-    loginDiscord().catch((err) => {
-      server.log.error(err, 'Failed to login to Discord');
-    });
+    loginDiscord()
+      .then(() => {
+        server.log.info(`Discord bot logged in as ${discordClient.user?.tag}`);
+      })
+      .catch((err) => {
+        server.log.error(err, 'Failed to login to Discord');
+      });
   } catch (err) {
     server.log.error(err, 'Failed to start server');
     process.exit(1);
