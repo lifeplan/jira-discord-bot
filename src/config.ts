@@ -33,4 +33,8 @@ export const config = {
     url: required('SUPABASE_URL'),
     anonKey: required('SUPABASE_ANON_KEY'),
   },
+  meeting: {
+    webhookSecret: optional('MEETING_WEBHOOK_SECRET', ''),
+    channelId: optional('MEETING_CHANNEL_ID', ''), // #문서-노티 채널 ID
+  },
 } as const;
