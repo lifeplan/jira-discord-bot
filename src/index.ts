@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import rawBody from 'fastify-raw-body';
 import { Events, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { config } from './config.js';
 import { discordClient, loginDiscord } from './services/discord.js';
@@ -17,6 +18,11 @@ const server = Fastify({
   logger: {
     level: config.server.nodeEnv === 'production' ? 'info' : 'debug',
   },
+});
+
+// rawBody 플러그인 등록 (HMAC 서명 검증용)
+server.register(rawBody, {
+  runFirst: true, // 다른 파서보다 먼저 실행
 });
 
 // Health check 엔드포인트

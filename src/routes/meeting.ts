@@ -14,6 +14,11 @@ interface MeetingWebhookBody {
   highlights?: string[];
 }
 
+// fastify-raw-body 플러그인이 추가하는 타입
+interface RawBodyRequest extends FastifyRequest {
+  rawBody?: string | Buffer;
+}
+
 function verifyHmacSignature(
   body: string,
   timestamp: string,
@@ -44,7 +49,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
         rawBody: true, // HMAC 검증을 위해 원본 body 필요
       },
     },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request: RawBodyRequest, reply: FastifyReply) => {
       const secret = config.meeting.webhookSecret;
       const channelId = config.meeting.channelId;
 
@@ -63,9 +68,17 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(401).send({ error: 'Missing authentication headers' });
       }
 
-      // HMAC 검증
-      const rawBody = JSON.stringify(request.body);
-      const isValid = verifyHmacSignature(rawBody, timestamp, signature, secret);
+      // rawBody 확인
+      if (!request.rawBody) {
+        fastify.log.error('rawBody not available');
+        return reply.status(500).send({ error: 'Server configuration error' });
+      }
+
+      // HMAC 검증 (rawBody 사용)
+      const rawBodyStr = typeof request.rawBody === 'string'
+        ? request.rawBody
+        : request.rawBody.toString('utf-8');
+      const isValid = verifyHmacSignature(rawBodyStr, timestamp, signature, secret);
 
       if (!isValid) {
         fastify.log.warn('Invalid HMAC signature or expired request');
