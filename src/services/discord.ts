@@ -255,13 +255,33 @@ export async function deleteJiraNotification(
   }
 }
 
-// Discord 봇 로그인 (재시도 포함)
+// Discord 봇 로그인 (타임아웃 + 재시도)
 const LOGIN_RETRY_DELAYS = [10_000, 30_000, 60_000]; // 10초, 30초, 60초
+const LOGIN_TIMEOUT = 15_000; // 로그인 시도당 15초 타임아웃
+
+function loginWithTimeout(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      discordClient.destroy();
+      reject(new Error('Discord login timed out after 15s'));
+    }, LOGIN_TIMEOUT);
+
+    discordClient.login(config.discord.token)
+      .then(() => {
+        clearTimeout(timer);
+        resolve();
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 export async function loginDiscord(): Promise<void> {
   for (let attempt = 0; attempt <= LOGIN_RETRY_DELAYS.length; attempt++) {
     try {
-      await discordClient.login(config.discord.token);
+      await loginWithTimeout();
       return;
     } catch (error) {
       if (attempt < LOGIN_RETRY_DELAYS.length) {
