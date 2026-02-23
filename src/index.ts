@@ -92,41 +92,6 @@ discordClient.on(Events.ThreadDelete, async (thread) => {
   server.log.info({ threadId: thread.id }, 'Thread deleted, mapping removed');
 });
 
-// Self-ping으로 Render 무료 티어 sleep 방지 (5분 간격)
-const PING_INTERVAL = 5 * 60 * 1000; // 5분
-let pingIntervalId: NodeJS.Timeout | null = null;
-
-function startSelfPing(): void {
-  const externalUrl = config.server.externalUrl;
-
-  if (!externalUrl) {
-    server.log.info('No EXTERNAL_URL configured, self-ping disabled');
-    return;
-  }
-
-  server.log.info(`Self-ping enabled: ${externalUrl}/health (every 5 minutes)`);
-
-  pingIntervalId = setInterval(async () => {
-    try {
-      const response = await fetch(`${externalUrl}/health`);
-      if (response.ok) {
-        server.log.debug('Self-ping successful');
-      } else {
-        server.log.warn(`Self-ping failed: ${response.status}`);
-      }
-    } catch (error) {
-      server.log.warn({ error }, 'Self-ping error');
-    }
-  }, PING_INTERVAL);
-}
-
-function stopSelfPing(): void {
-  if (pingIntervalId) {
-    clearInterval(pingIntervalId);
-    pingIntervalId = null;
-  }
-}
-
 // 서버 시작
 async function start(): Promise<void> {
   try {
@@ -138,9 +103,6 @@ async function start(): Promise<void> {
 
     server.log.info(`Server running on port ${config.server.port}`);
     server.log.info(`Environment: ${config.server.nodeEnv}`);
-
-    // Self-ping 시작 (Render sleep 방지)
-    startSelfPing();
 
     // Discord REST 토큰 먼저 설정 (login()이 hang 돼도 REST API 사용 가능)
     discordClient.rest.setToken(config.discord.token);
@@ -160,7 +122,6 @@ async function start(): Promise<void> {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   server.log.info('Shutting down...');
-  stopSelfPing();
   await server.close();
   discordClient.destroy();
   process.exit(0);
@@ -168,7 +129,6 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   server.log.info('Shutting down...');
-  stopSelfPing();
   await server.close();
   discordClient.destroy();
   process.exit(0);
