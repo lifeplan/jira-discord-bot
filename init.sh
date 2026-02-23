@@ -1,6 +1,6 @@
 #!/bin/bash
 # GCP e2-micro 초기 설정 스크립트
-# Docker, Docker Compose, Git, Nginx, Certbot 설치 (Debian/Ubuntu)
+# 사용법: curl -fsSL https://raw.githubusercontent.com/lifeplan/jira-discord-bot/main/init.sh | bash
 set -e
 
 echo "=== 시스템 업데이트 ==="
