@@ -276,10 +276,6 @@ export async function sendMeetingSummary(
   channelId: string,
   meeting: MeetingSummaryInfo
 ): Promise<string> {
-  if (!discordClient.isReady()) {
-    throw new Error('Discord bot is not connected');
-  }
-
   const channel = await discordClient.channels.fetch(channelId);
 
   if (!channel || !(channel instanceof TextChannel)) {

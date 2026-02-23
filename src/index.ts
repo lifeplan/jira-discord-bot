@@ -30,7 +30,7 @@ server.get('/health', async () => {
   return {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    discord: discordClient.isReady() ? 'connected' : 'disconnected',
+    discord: discordClient.ws.status === 0 ? 'connected' : discordClient.isReady() ? 'ready' : 'disconnected',
     uptime: process.uptime(),
   };
 });
