@@ -92,6 +92,22 @@ discordClient.on(Events.ThreadDelete, async (thread) => {
   server.log.info({ threadId: thread.id }, 'Thread deleted, mapping removed');
 });
 
+// Supabase keepalive (24시간마다 조회하여 무료 티어 일시정지 방지)
+const KEEPALIVE_INTERVAL = 24 * 60 * 60 * 1000;
+let keepaliveIntervalId: NodeJS.Timeout | null = null;
+
+function startSupabaseKeepalive(): void {
+  keepaliveIntervalId = setInterval(async () => {
+    try {
+      const { getAllMappings } = await import('./database/mappings.js');
+      const mappings = await getAllMappings();
+      server.log.info(`Supabase keepalive: ${mappings.length} mappings`);
+    } catch (error) {
+      server.log.warn({ error }, 'Supabase keepalive failed');
+    }
+  }, KEEPALIVE_INTERVAL);
+}
+
 // 서버 시작
 async function start(): Promise<void> {
   try {
@@ -103,6 +119,9 @@ async function start(): Promise<void> {
 
     server.log.info(`Server running on port ${config.server.port}`);
     server.log.info(`Environment: ${config.server.nodeEnv}`);
+
+    // Supabase keepalive 시작
+    startSupabaseKeepalive();
 
     // Discord REST 토큰 먼저 설정 (login()이 hang 돼도 REST API 사용 가능)
     discordClient.rest.setToken(config.discord.token);
@@ -122,6 +141,7 @@ async function start(): Promise<void> {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   server.log.info('Shutting down...');
+  if (keepaliveIntervalId) clearInterval(keepaliveIntervalId);
   await server.close();
   discordClient.destroy();
   process.exit(0);
@@ -129,6 +149,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   server.log.info('Shutting down...');
+  if (keepaliveIntervalId) clearInterval(keepaliveIntervalId);
   await server.close();
   discordClient.destroy();
   process.exit(0);
