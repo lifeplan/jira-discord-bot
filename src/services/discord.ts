@@ -255,9 +255,24 @@ export async function deleteJiraNotification(
   }
 }
 
-// Discord 봇 로그인
+// Discord 봇 로그인 (재시도 포함)
+const LOGIN_RETRY_DELAYS = [10_000, 30_000, 60_000]; // 10초, 30초, 60초
+
 export async function loginDiscord(): Promise<void> {
-  await discordClient.login(config.discord.token);
+  for (let attempt = 0; attempt <= LOGIN_RETRY_DELAYS.length; attempt++) {
+    try {
+      await discordClient.login(config.discord.token);
+      return;
+    } catch (error) {
+      if (attempt < LOGIN_RETRY_DELAYS.length) {
+        const delay = LOGIN_RETRY_DELAYS[attempt];
+        console.error(`Discord login failed (attempt ${attempt + 1}/${LOGIN_RETRY_DELAYS.length + 1}), retrying in ${delay / 1000}s...`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 
 // 회의록 요약 정보
@@ -274,6 +289,10 @@ export async function sendMeetingSummary(
   channelId: string,
   meeting: MeetingSummaryInfo
 ): Promise<string> {
+  if (!discordClient.isReady()) {
+    throw new Error('Discord bot is not connected');
+  }
+
   const channel = await discordClient.channels.fetch(channelId);
 
   if (!channel || !(channel instanceof TextChannel)) {

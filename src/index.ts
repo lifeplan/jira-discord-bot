@@ -39,6 +39,18 @@ server.get('/health', async () => {
 server.register(webhookRoutes);
 server.register(meetingRoutes);
 
+// Discord 연결 끊김 시 자동 재연결
+discordClient.on('error', (error) => {
+  server.log.error(error, 'Discord client error');
+});
+
+discordClient.on('disconnect', () => {
+  server.log.warn('Discord disconnected, attempting reconnect...');
+  loginDiscord().catch((err) => {
+    server.log.error(err, 'Discord reconnect failed after all retries');
+  });
+});
+
 // Discord 봇 이벤트
 discordClient.once(Events.ClientReady, async (client) => {
   server.log.info(`Discord bot logged in as ${client.user.tag}`);
