@@ -142,12 +142,19 @@ async function start(): Promise<void> {
     // Self-ping 시작 (Render sleep 방지)
     startSelfPing();
 
-    // Discord 봇 로그인 (서버 시작 후 백그라운드에서)
-    // login() Promise는 Render에서 hang 될 수 있으나, 실제 연결은 됨 (ClientReady 이벤트로 확인)
-    server.log.info('Logging in to Discord...');
-    loginDiscord().catch((err) => {
-      server.log.error(err, 'Discord login error');
-    });
+    // Discord 봇 로그인
+    // 배포 시 이전 인스턴스가 아직 Discord에 연결된 상태일 수 있으므로
+    // 이전 인스턴스 종료를 기다린 후 로그인 (세션 충돌 방지)
+    const loginDelay = config.server.nodeEnv === 'production' ? 15_000 : 0;
+    if (loginDelay > 0) {
+      server.log.info(`Waiting ${loginDelay / 1000}s before Discord login (deploy grace period)...`);
+    }
+    setTimeout(() => {
+      server.log.info('Logging in to Discord...');
+      loginDiscord().catch((err) => {
+        server.log.error(err, 'Discord login error');
+      });
+    }, loginDelay);
   } catch (err) {
     server.log.error(err, 'Failed to start server');
     process.exit(1);
