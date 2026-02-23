@@ -19,6 +19,7 @@ import {
 } from '../database/mappings.js';
 import { extractCommentText } from '../services/jira.js';
 import type { JiraWebhookPayload } from '../services/jira.js';
+import { logError } from '../database/errorLogs.js';
 
 // Discord에서 보낸 코멘트인지 확인 (이중 알림 방지)
 const DISCORD_COMMENT_PREFIX = '[Discord -';
@@ -101,6 +102,7 @@ async function handleIssueCreated(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to process issue created');
+    logError('webhook:issue_created', error, { ticketKey: payload.issue?.key });
     return reply.status(500).send({
       error: 'Failed to process webhook',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -145,6 +147,7 @@ async function handleIssueUpdated(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to update Discord message');
+    logError('webhook:issue_updated', error, { ticketKey });
     return reply.status(500).send({
       error: 'Failed to update Discord message',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -201,6 +204,7 @@ async function handleCommentCreated(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to send comment to Discord');
+    logError('webhook:comment_created', error, { ticketKey, threadId: mapping.thread_id });
     return reply.status(500).send({
       error: 'Failed to send comment to Discord',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -273,6 +277,7 @@ async function handleCommentUpdated(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to update Discord message');
+    logError('webhook:comment_updated', error, { ticketKey, jiraCommentId });
     return reply.status(500).send({
       error: 'Failed to update Discord message',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -314,6 +319,7 @@ async function handleCommentDeleted(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to delete Discord message');
+    logError('webhook:comment_deleted', error, { ticketKey, jiraCommentId });
     return reply.status(500).send({
       error: 'Failed to delete Discord message',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -358,6 +364,7 @@ async function handleIssueDeleted(
     };
   } catch (error) {
     fastify.log.error(error, 'Failed to delete Discord message/thread');
+    logError('webhook:issue_deleted', error, { ticketKey });
     return reply.status(500).send({
       error: 'Failed to delete Discord message/thread',
       message: error instanceof Error ? error.message : 'Unknown error',

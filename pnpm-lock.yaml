@@ -8,18 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@discordjs/rest':
-        specifier: ^2.6.0
-        version: 2.6.0
       '@fastify/env':
         specifier: ^5.0.3
         version: 5.0.3
       '@supabase/supabase-js':
         specifier: ^2.91.1
         version: 2.91.1
-      discord-api-types:
-        specifier: ^0.38.40
-        version: 0.38.40
       discord.js:
         specifier: ^14.25.1
         version: 14.25.1

@@ -4,6 +4,7 @@ import {
   deleteCommentMappingByDiscordMessage,
 } from '../database/mappings.js';
 import { deleteComment } from '../services/jira.js';
+import { logError } from '../database/errorLogs.js';
 
 export async function handleMessageDelete(
   message: Message | PartialMessage
@@ -34,6 +35,7 @@ export async function handleMessageDelete(
     console.log(`Jira comment deleted: ${mapping.jira_comment_id}`);
   } catch (error) {
     console.error('Failed to delete Jira comment:', error);
+    logError('discord:message_delete', error, { ticketKey: mapping.ticket_key, jiraCommentId: mapping.jira_comment_id });
     // 실패해도 매핑은 삭제
     await deleteCommentMappingByDiscordMessage(messageId);
   }

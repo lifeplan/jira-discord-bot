@@ -6,9 +6,8 @@ dist/
 
 # Environment
 .env
-.env.prod
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Data
 data/

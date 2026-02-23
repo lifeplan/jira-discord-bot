@@ -1,6 +1,6 @@
 #!/bin/bash
 # GCP e2-micro 초기 설정 스크립트
-# Docker, Docker Compose, Git 설치 (Debian/Ubuntu)
+# Docker, Docker Compose, Git, Nginx, Certbot 설치 (Debian/Ubuntu)
 set -e
 
 echo "=== 시스템 업데이트 ==="
@@ -24,15 +24,21 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 # 현재 사용자를 docker 그룹에 추가 (sudo 없이 docker 실행 가능)
 sudo usermod -aG docker "$USER"
 
+echo "=== Nginx + Certbot 설치 ==="
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+
 echo ""
 echo "=== 설치 완료 ==="
 docker --version
 docker compose version
 git --version
+nginx -v
+certbot --version
 echo ""
 echo "※ docker 그룹 적용을 위해 재로그인 필요: exit 후 다시 SSH 접속"
 echo ""
 echo "=== 다음 단계 ==="
 echo "1. git clone <repo-url> && cd jira-discord-bot"
 echo "2. cp .env.example .env && vi .env"
-echo "3. ./start.sh"
+echo "3. ./setup-ssl.sh"
+echo "4. ./start.sh"

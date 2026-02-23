@@ -256,8 +256,6 @@ export async function deleteJiraNotification(
 }
 
 // Discord 봇 로그인
-// Render에서 login() Promise가 resolve 안 되는 경우가 있어 fire-and-forget으로 처리
-// 실제 연결 확인은 ClientReady 이벤트로 수행 (index.ts)
 export async function loginDiscord(): Promise<void> {
   await discordClient.login(config.discord.token);
 }

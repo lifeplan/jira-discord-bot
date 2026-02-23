@@ -1,6 +1,7 @@
 import { Message, PartialMessage } from 'discord.js';
 import { getCommentMappingByDiscordMessage, convertDiscordMentionsToJira } from '../database/mappings.js';
 import { updateComment } from '../services/jira.js';
+import { logError } from '../database/errorLogs.js';
 
 export async function handleMessageUpdate(
   oldMessage: Message | PartialMessage,
@@ -52,5 +53,6 @@ export async function handleMessageUpdate(
     console.log(`Jira comment updated: ${mapping.jira_comment_id}`);
   } catch (error) {
     console.error('Failed to update Jira comment:', error);
+    logError('discord:message_update', error, { ticketKey: mapping.ticket_key, jiraCommentId: mapping.jira_comment_id });
   }
 }

@@ -9,6 +9,7 @@ import { handleMessageCreate } from './events/messageCreate.js';
 import { handleMessageUpdate } from './events/messageUpdate.js';
 import { handleMessageDelete } from './events/messageDelete.js';
 import { registerCommands, commands } from './commands/index.js';
+import { logError } from './database/errorLogs.js';
 
 // DB 초기화 (import 시 자동 실행)
 import './database/index.js';
@@ -42,6 +43,7 @@ server.register(meetingRoutes);
 // Discord 에러 로깅
 discordClient.on('error', (error) => {
   server.log.error(error, 'Discord client error');
+  logError('discord:client', error);
 });
 
 // Discord 봇 Ready 이벤트
@@ -54,6 +56,7 @@ discordClient.once(Events.ClientReady, async (client) => {
     server.log.info('Slash commands registered');
   } catch (error) {
     server.log.error(error, 'Failed to register slash commands');
+    logError('discord:command', error);
   }
 });
 
@@ -68,6 +71,7 @@ discordClient.on(Events.InteractionCreate, async (interaction) => {
     await command.execute(interaction as ChatInputCommandInteraction);
   } catch (error) {
     server.log.error(error, 'Failed to execute command');
+    logError('discord:command', error, { command: interaction.commandName });
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp({ content: '명령어 실행 중 오류가 발생했습니다.', flags: [MessageFlags.Ephemeral] });
     } else {
@@ -104,6 +108,7 @@ function startSupabaseKeepalive(): void {
       server.log.info(`Supabase keepalive: ${mappings.length} mappings`);
     } catch (error) {
       server.log.warn({ error }, 'Supabase keepalive failed');
+      logError('supabase:keepalive', error);
     }
   }, KEEPALIVE_INTERVAL);
 }
@@ -111,7 +116,7 @@ function startSupabaseKeepalive(): void {
 // 서버 시작
 async function start(): Promise<void> {
   try {
-    // HTTP 서버 먼저 시작 (Render 포트 감지를 위해)
+    // HTTP 서버 시작
     await server.listen({
       port: config.server.port,
       host: '0.0.0.0',
@@ -123,14 +128,11 @@ async function start(): Promise<void> {
     // Supabase keepalive 시작
     startSupabaseKeepalive();
 
-    // Discord REST 토큰 먼저 설정 (login()이 hang 돼도 REST API 사용 가능)
-    discordClient.rest.setToken(config.discord.token);
-    server.log.info('Discord REST token set');
-
-    // Discord 봇 로그인 (WebSocket 연결)
+    // Discord 봇 로그인
     server.log.info('Logging in to Discord...');
     loginDiscord().catch((err) => {
       server.log.error(err, 'Discord login error');
+      logError('discord:login', err);
     });
   } catch (err) {
     server.log.error(err, 'Failed to start server');

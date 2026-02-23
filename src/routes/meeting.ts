@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { sendMeetingSummary } from '../services/discord.js';
+import { logError } from '../database/errorLogs.js';
 
 // HMAC 검증 (5분 이내 요청만 허용)
 const MAX_AGE_MS = 5 * 60 * 1000;
@@ -111,6 +112,7 @@ export async function meetingRoutes(fastify: FastifyInstance): Promise<void> {
         };
       } catch (error) {
         fastify.log.error(error, 'Failed to send meeting summary to Discord');
+        logError('webhook:meeting', error, { title: body.title, date: body.date });
         return reply.status(500).send({
           error: 'Failed to send meeting summary',
           message: error instanceof Error ? error.message : 'Unknown error',

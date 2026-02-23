@@ -1,6 +1,7 @@
 import { Message } from 'discord.js';
 import { getTicketKeyByThreadId, saveCommentMapping, convertDiscordMentionsToJira } from '../database/mappings.js';
 import { addComment } from '../services/jira.js';
+import { logError } from '../database/errorLogs.js';
 
 export async function handleMessageCreate(message: Message): Promise<void> {
   // 봇 메시지 무시
@@ -38,6 +39,7 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     console.log(`[Discord → Jira] Comment added to ${ticketKey} by ${authorName}`);
   } catch (error) {
     console.error(`Failed to add comment to ${ticketKey}:`, error);
+    logError('discord:message_create', error, { ticketKey, threadId });
 
     // 실패 시 알림 메시지 전송
     try {
