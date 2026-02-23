@@ -27,6 +27,16 @@ sudo usermod -aG docker "$USER"
 echo "=== Nginx + Certbot 설치 ==="
 sudo apt-get install -y nginx certbot python3-certbot-nginx
 
+echo "=== 프로젝트 클론 ==="
+REPO_URL="https://github.com/lifeplan/jira-discord-bot.git"
+APP_DIR="$HOME/jira-discord-bot"
+
+if [ -d "$APP_DIR" ]; then
+  echo "이미 클론됨: $APP_DIR"
+else
+  git clone "$REPO_URL" "$APP_DIR"
+fi
+
 echo ""
 echo "=== 설치 완료 ==="
 docker --version
@@ -38,7 +48,8 @@ echo ""
 echo "※ docker 그룹 적용을 위해 재로그인 필요: exit 후 다시 SSH 접속"
 echo ""
 echo "=== 다음 단계 ==="
-echo "1. git clone <repo-url> && cd jira-discord-bot"
-echo "2. cp .env.example .env && vi .env"
-echo "3. ./setup-ssl.sh"
-echo "4. ./start.sh"
+echo "1. exit (재로그인)"
+echo "2. cd ~/jira-discord-bot"
+echo "3. cp .env.example .env && vi .env"
+echo "4. ./setup-ssl.sh"
+echo "5. ./start.sh"
