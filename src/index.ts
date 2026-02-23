@@ -39,21 +39,14 @@ server.get('/health', async () => {
 server.register(webhookRoutes);
 server.register(meetingRoutes);
 
-// Discord 연결 끊김 시 자동 재연결
+// Discord 에러 로깅
 discordClient.on('error', (error) => {
   server.log.error(error, 'Discord client error');
 });
 
-discordClient.on('disconnect', () => {
-  server.log.warn('Discord disconnected, attempting reconnect...');
-  loginDiscord().catch((err) => {
-    server.log.error(err, 'Discord reconnect failed after all retries');
-  });
-});
-
-// Discord 봇 이벤트
+// Discord 봇 Ready 이벤트
 discordClient.once(Events.ClientReady, async (client) => {
-  server.log.info(`Discord bot logged in as ${client.user.tag}`);
+  server.log.info(`Discord bot ready: ${client.user.tag}`);
 
   // 슬래시 커맨드 등록
   try {
@@ -150,14 +143,11 @@ async function start(): Promise<void> {
     startSelfPing();
 
     // Discord 봇 로그인 (서버 시작 후 백그라운드에서)
+    // login() Promise는 Render에서 hang 될 수 있으나, 실제 연결은 됨 (ClientReady 이벤트로 확인)
     server.log.info('Logging in to Discord...');
-    loginDiscord()
-      .then(() => {
-        server.log.info(`Discord bot logged in as ${discordClient.user?.tag}`);
-      })
-      .catch((err) => {
-        server.log.error(err, 'Failed to login to Discord');
-      });
+    loginDiscord().catch((err) => {
+      server.log.error(err, 'Discord login error');
+    });
   } catch (err) {
     server.log.error(err, 'Failed to start server');
     process.exit(1);

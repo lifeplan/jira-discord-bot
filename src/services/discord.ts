@@ -255,44 +255,11 @@ export async function deleteJiraNotification(
   }
 }
 
-// Discord 봇 로그인 (타임아웃 + 재시도)
-const LOGIN_RETRY_DELAYS = [10_000, 30_000, 60_000]; // 10초, 30초, 60초
-const LOGIN_TIMEOUT = 15_000; // 로그인 시도당 15초 타임아웃
-
-function loginWithTimeout(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      discordClient.destroy();
-      reject(new Error('Discord login timed out after 15s'));
-    }, LOGIN_TIMEOUT);
-
-    discordClient.login(config.discord.token)
-      .then(() => {
-        clearTimeout(timer);
-        resolve();
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
-  });
-}
-
+// Discord 봇 로그인
+// Render에서 login() Promise가 resolve 안 되는 경우가 있어 fire-and-forget으로 처리
+// 실제 연결 확인은 ClientReady 이벤트로 수행 (index.ts)
 export async function loginDiscord(): Promise<void> {
-  for (let attempt = 0; attempt <= LOGIN_RETRY_DELAYS.length; attempt++) {
-    try {
-      await loginWithTimeout();
-      return;
-    } catch (error) {
-      if (attempt < LOGIN_RETRY_DELAYS.length) {
-        const delay = LOGIN_RETRY_DELAYS[attempt];
-        console.error(`Discord login failed (attempt ${attempt + 1}/${LOGIN_RETRY_DELAYS.length + 1}), retrying in ${delay / 1000}s...`, error);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
-    }
-  }
+  await discordClient.login(config.discord.token);
 }
 
 // 회의록 요약 정보
