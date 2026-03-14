@@ -75,11 +75,12 @@ export async function documentRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: RawBodyRequest, reply: FastifyReply) => {
-      const secret = config.document.webhookSecret;
+      // meeting과 동일한 채널/시크릿 사용 (별도 설정 시 오버라이드 가능)
+      const secret = config.document.webhookSecret || config.meeting.webhookSecret;
       const channelId = config.document.channelId || config.meeting.channelId;
 
       if (!secret || !channelId) {
-        fastify.log.error('DOCUMENT_WEBHOOK_SECRET or channel ID not configured');
+        fastify.log.error('Webhook secret or channel ID not configured');
         return reply.status(500).send({ error: 'Server not configured for document webhooks' });
       }
 
