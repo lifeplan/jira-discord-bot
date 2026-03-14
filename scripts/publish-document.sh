@@ -26,7 +26,7 @@
 set -euo pipefail
 
 # 기본값
-BOT_URL="${BOT_URL:-http://localhost:3000}"
+BOT_URL="${BOT_URL:-https://sdpg.shop}"
 SECRET="${DOCUMENT_WEBHOOK_SECRET:-}"
 TITLE=""
 SUMMARY=""
@@ -69,67 +69,70 @@ if [[ -z "$SECRET" ]]; then
   exit 1
 fi
 
-# JSON body 생성
-JSON_BODY=$(cat <<EOF
-{
-  "title": $(echo "$TITLE" | jq -Rs .),
-  "summary": $(echo "$SUMMARY" | jq -Rs .),
-  "author": $(echo "$AUTHOR" | jq -Rs .)
-EOF
-)
+# jq로 안전하게 JSON 생성
+JSON_BODY=$(jq -n \
+  --arg title "$TITLE" \
+  --arg summary "$SUMMARY" \
+  --arg author "$AUTHOR" \
+  '{title: $title, summary: $summary, author: $author}')
 
 # 선택 필드 추가
 if [[ -n "$CATEGORY" ]]; then
-  JSON_BODY="$JSON_BODY, \"category\": $(echo "$CATEGORY" | jq -Rs .)"
+  JSON_BODY=$(echo "$JSON_BODY" | jq --arg v "$CATEGORY" '. + {category: $v}')
 fi
 
 if [[ -n "$CONFLUENCE_URL" ]]; then
-  JSON_BODY="$JSON_BODY, \"confluenceUrl\": $(echo "$CONFLUENCE_URL" | jq -Rs .)"
+  JSON_BODY=$(echo "$JSON_BODY" | jq --arg v "$CONFLUENCE_URL" '. + {confluenceUrl: $v}')
 fi
 
 # Confluence 생성 옵션
 if [[ -n "$CONFLUENCE_SPACE_ID" && -n "$CONFLUENCE_BODY" ]]; then
-  CONFLUENCE_JSON="\"confluence\": { \"spaceId\": $(echo "$CONFLUENCE_SPACE_ID" | jq -Rs .), \"body\": $(echo "$CONFLUENCE_BODY" | jq -Rs .)"
   if [[ -n "$CONFLUENCE_PARENT_ID" ]]; then
-    CONFLUENCE_JSON="$CONFLUENCE_JSON, \"parentId\": $(echo "$CONFLUENCE_PARENT_ID" | jq -Rs .)"
+    JSON_BODY=$(echo "$JSON_BODY" | jq \
+      --arg sid "$CONFLUENCE_SPACE_ID" \
+      --arg body "$CONFLUENCE_BODY" \
+      --arg pid "$CONFLUENCE_PARENT_ID" \
+      '. + {confluence: {spaceId: $sid, body: $body, parentId: $pid}}')
+  else
+    JSON_BODY=$(echo "$JSON_BODY" | jq \
+      --arg sid "$CONFLUENCE_SPACE_ID" \
+      --arg body "$CONFLUENCE_BODY" \
+      '. + {confluence: {spaceId: $sid, body: $body}}')
   fi
-  CONFLUENCE_JSON="$CONFLUENCE_JSON }"
-  JSON_BODY="$JSON_BODY, $CONFLUENCE_JSON"
 fi
 
 # highlights (쉼표 구분 → JSON 배열)
 if [[ -n "$HIGHLIGHTS" ]]; then
-  HIGHLIGHTS_JSON=$(echo "$HIGHLIGHTS" | jq -Rs 'split(",")')
-  JSON_BODY="$JSON_BODY, \"highlights\": $HIGHLIGHTS_JSON"
+  JSON_BODY=$(echo "$JSON_BODY" | jq --arg v "$HIGHLIGHTS" '. + {highlights: ($v | split(","))}')
 fi
 
 # tags (쉼표 구분 → JSON 배열)
 if [[ -n "$TAGS" ]]; then
-  TAGS_JSON=$(echo "$TAGS" | jq -Rs 'split(",")')
-  JSON_BODY="$JSON_BODY, \"tags\": $TAGS_JSON"
+  JSON_BODY=$(echo "$JSON_BODY" | jq --arg v "$TAGS" '. + {tags: ($v | split(","))}')
 fi
 
-JSON_BODY="{ $JSON_BODY }"
+# compact JSON (한 줄로)
+JSON_BODY=$(echo "$JSON_BODY" | jq -c .)
 
-# HMAC 서명 생성
-TIMESTAMP=$(date +%s%3N)
+# HMAC 서명 생성 (macOS date는 %3N 미지원이므로 000 고정)
+TIMESTAMP=$(date +%s)000
 SIGNATURE=$(echo -n "${JSON_BODY}${TIMESTAMP}" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
 
 # 요청 전송
 echo "📤 Publishing document: $TITLE"
-RESPONSE=$(curl -s -w "\n%{http_code}" \
+HTTP_CODE=$(curl -s -o /tmp/publish-doc-response.json -w "%{http_code}" \
   -X POST "${BOT_URL}/webhook/document" \
   -H "Content-Type: application/json" \
   -H "X-Signature: $SIGNATURE" \
   -H "X-Timestamp: $TIMESTAMP" \
   -d "$JSON_BODY")
 
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-BODY=$(echo "$RESPONSE" | head -n -1)
+RESPONSE_BODY=$(cat /tmp/publish-doc-response.json 2>/dev/null || echo "")
+rm -f /tmp/publish-doc-response.json
 
 if [[ "$HTTP_CODE" == "200" ]]; then
-  echo "✅ Success! Response: $BODY"
+  echo "✅ Success! Response: $RESPONSE_BODY"
 else
-  echo "❌ Failed (HTTP $HTTP_CODE): $BODY"
+  echo "❌ Failed (HTTP $HTTP_CODE): $RESPONSE_BODY"
   exit 1
 fi
