@@ -8,6 +8,7 @@ export type ErrorSource =
   | 'webhook:comment_updated'
   | 'webhook:comment_deleted'
   | 'webhook:meeting'
+  | 'webhook:document'
   | 'discord:message_create'
   | 'discord:message_update'
   | 'discord:message_delete'

@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { discordClient, loginDiscord } from './services/discord.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { meetingRoutes } from './routes/meeting.js';
+import { documentRoutes } from './routes/document.js';
 import { handleMessageCreate } from './events/messageCreate.js';
 import { handleMessageUpdate } from './events/messageUpdate.js';
 import { handleMessageDelete } from './events/messageDelete.js';
@@ -39,6 +40,7 @@ server.get('/health', async () => {
 // Webhook 라우트 등록
 server.register(webhookRoutes);
 server.register(meetingRoutes);
+server.register(documentRoutes);
 
 // Discord 에러 로깅
 discordClient.on('error', (error) => {

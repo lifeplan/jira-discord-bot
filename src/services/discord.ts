@@ -260,6 +260,71 @@ export async function loginDiscord(): Promise<void> {
   await discordClient.login(config.discord.token);
 }
 
+// 문서 알림 정보
+export interface DocumentNotificationInfo {
+  title: string;
+  summary: string;
+  author: string;
+  emoji: string;
+  category?: string;
+  confluenceUrl?: string;
+  highlights?: string[];
+  tags?: string[];
+}
+
+// Discord에 문서 알림 전송 (#문서-노티 채널)
+export async function sendDocumentNotification(
+  channelId: string,
+  doc: DocumentNotificationInfo
+): Promise<string> {
+  const channel = await discordClient.channels.fetch(channelId);
+
+  if (!channel || !(channel instanceof TextChannel)) {
+    throw new Error(`Channel not found or not a text channel: ${channelId}`);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const categoryLabel = doc.category ? ` ${doc.category}` : '';
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${doc.emoji} [${today}]${categoryLabel} ${doc.title}`)
+    .setColor(0x00b894) // 민트 그린
+    .setDescription(doc.summary)
+    .setTimestamp();
+
+  // 주요 내용이 있으면 추가
+  if (doc.highlights && doc.highlights.length > 0) {
+    embed.addFields({
+      name: '주요 내용',
+      value: doc.highlights.map(h => `• ${h}`).join('\n'),
+    });
+  }
+
+  // 태그가 있으면 추가
+  if (doc.tags && doc.tags.length > 0) {
+    embed.addFields({
+      name: '태그',
+      value: doc.tags.map(t => `\`${t}\``).join(' '),
+      inline: true,
+    });
+  }
+
+  // Confluence 링크가 있으면 추가
+  if (doc.confluenceUrl) {
+    embed.addFields({
+      name: '📄 문서 링크',
+      value: doc.confluenceUrl,
+    });
+  }
+
+  embed.setFooter({
+    text: `✍️ ${doc.author} · 🤖 AI 작업 결과물`,
+  });
+
+  const message = await channel.send({ embeds: [embed] });
+  return message.id;
+}
+
 // 회의록 요약 정보
 export interface MeetingSummaryInfo {
   title: string;

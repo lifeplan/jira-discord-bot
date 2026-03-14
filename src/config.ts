@@ -35,4 +35,8 @@ export const config = {
     webhookSecret: optional('MEETING_WEBHOOK_SECRET', ''),
     channelId: optional('MEETING_CHANNEL_ID', ''), // #문서-노티 채널 ID
   },
+  document: {
+    webhookSecret: optional('DOCUMENT_WEBHOOK_SECRET', ''),
+    channelId: optional('DOCUMENT_CHANNEL_ID', ''), // 미설정 시 MEETING_CHANNEL_ID 사용
+  },
 } as const;
